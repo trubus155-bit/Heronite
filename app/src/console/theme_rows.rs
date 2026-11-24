@@ -224,6 +224,9 @@ fn opt_row(o: &Opt, cx: &Ctx) -> Row {
         Kind::Choice { names, get, .. } => {
             Row::choice(o.id, label, names().into_iter().map(SharedString::from).collect(), get(p)).compact()
         }
+        Kind::DynamicChoice { names, get, .. } => {
+            Row::choice(o.id, label, names().into_iter().map(SharedString::from).collect(), get(p)).compact()
+        }
         Kind::Number { min, max, step, suffix, get, .. } => Row::number(o.id, label, get(p), *min, *max, *step, suffix),
         Kind::Text { get, .. } | Kind::File { get, .. } => Row::text(o.id, label, get(p)),
     };
@@ -234,7 +237,7 @@ fn opt_row(o: &Opt, cx: &Ctx) -> Row {
         let own = p.theme.background.source == BackgroundSource::Image;
         row = row.enabled(own);
     }
-    if matches!(o.id, "controls.sound_style" | "controls.sound_volume") {
+    if matches!(o.id, "controls.sound_style" | "controls.dynamic_pitch" | "controls.sound_volume") {
         row = row.enabled(p.theme.controls.sounds);
     }
     if !applies(o.id, &p.theme) {

@@ -56,6 +56,10 @@ impl CollectionView {
 
     /// Console mode just started, its theme installed.
     pub(super) fn console_controls_started(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let theme = look::theme();
+        if theme.controls.sounds {
+            sound::initialize(sound::Settings::of(&theme.controls));
+        }
         self.console.controls.last_press = Instant::now();
         // `HERONITE_DEBUG_IDLE_SECS=<n>`: the idle screen after `n` seconds of quiet (checked every second).
         let debug_secs = crate::env::parse::<u64>("HERONITE_DEBUG_IDLE_SECS");
@@ -83,7 +87,7 @@ impl CollectionView {
         let theme = look::theme();
         if theme.controls.sounds {
             if let Some(sound) = sound::for_pad(pad) {
-                sound::play(&self.app_paths.cache, sound, sound::Settings::of(&theme.controls));
+                sound::play(sound, sound::Settings::of(&theme.controls));
             }
         }
         false

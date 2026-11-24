@@ -160,7 +160,7 @@ impl CollectionView {
                         self.console.session.shown = Some((card, Instant::now()));
                         let theme = look::theme();
                         if theme.controls.sounds {
-                            sound::play(&self.app_paths.cache, Sound::Confirm, sound::Settings::of(&theme.controls));
+                            sound::play(Sound::Confirm, sound::Settings::of(&theme.controls));
                         }
                         cx.notify();
                     }

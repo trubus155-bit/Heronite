@@ -62,6 +62,21 @@ fn startup_options_live_in_the_prefs_not_the_theme() {
 }
 
 #[test]
+fn sound_style_and_dynamic_pitch_are_console_settings() {
+    let mut p = ConsolePrefs::default();
+    let rows = rows_of(&p, Card::Controls);
+    let style = rows.iter().position(|row| row.id == "controls.sound_style").unwrap();
+    let pitch = rows.iter().position(|row| row.id == "controls.dynamic_pitch").unwrap();
+    assert_eq!(pitch, style + 1);
+    assert!(change(&mut p, "controls.sounds", Value::Toggle(true)));
+    assert!(change(&mut p, "controls.dynamic_pitch", Value::Toggle(false)));
+    assert!(!p.theme.controls.dynamic_pitch);
+    assert!(change(&mut p, "controls.sound_style", choice(1)));
+    assert_eq!(p.theme.controls.sound_style, "classic");
+    assert!(!change(&mut p, "controls.sound_style", choice(1)), "same style changes nothing");
+}
+
+#[test]
 fn tabs_stay_between_one_and_four() {
     let mut p = ConsolePrefs::default();
     let add = Command::new("tab.add", Arg::Press);

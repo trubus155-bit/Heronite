@@ -2,6 +2,33 @@
 //! found by row id.
 
 use super::*;
+use crate::console::sound;
+
+fn sound_style_options() -> Vec<String> {
+    sound::available_styles()
+        .into_iter()
+        .map(|style| match style.id.as_str() {
+            "soft" => tr(sound_style_name(SoundStyle::Soft)).to_string(),
+            "classic" => tr(sound_style_name(SoundStyle::Classic)).to_string(),
+            _ => style.label,
+        })
+        .collect()
+}
+
+fn sound_style_index(prefs: &ConsolePrefs) -> usize {
+    let styles = sound::available_styles();
+    styles
+        .iter()
+        .position(|style| style.id == prefs.theme.controls.sound_style)
+        .or_else(|| styles.iter().position(|style| style.id == "classic"))
+        .unwrap_or(0)
+}
+
+fn set_sound_style(prefs: &mut ConsolePrefs, index: usize) {
+    if let Some(style) = sound::available_styles().get(index) {
+        prefs.theme.controls.sound_style = style.id.clone();
+    }
+}
 
 pub(super) enum Kind {
     Toggle {
@@ -10,6 +37,11 @@ pub(super) enum Kind {
     },
     Choice {
         names: fn() -> Vec<&'static str>,
+        get: fn(&ConsolePrefs) -> usize,
+        set: fn(&mut ConsolePrefs, usize),
+    },
+    DynamicChoice {
+        names: fn() -> Vec<String>,
         get: fn(&ConsolePrefs) -> usize,
         set: fn(&mut ConsolePrefs, usize),
     },
@@ -293,16 +325,15 @@ pub(super) static OPTS: &[Opt] = &[
     ),
     sel!("controls.hints", Controls, n_!("Hint bar"), "", &[], Hints, hints_name, theme.controls.hints),
     tgl!("controls.sounds", Controls, n_!("Navigation sounds"), "", &[], theme.controls.sounds),
-    sel!(
-        "controls.sound_style",
-        Controls,
-        n_!("Sound style"),
-        n_!("Soft is low and round. Classic is the first, higher one."),
-        &[],
-        SoundStyle,
-        sound_style_name,
-        theme.controls.sound_style
-    ),
+    Opt {
+        id: "controls.sound_style",
+        card: Card::Controls,
+        label: n_!("Sound style"),
+        desc: n_!("Soft is low and round. Classic is the first, higher one."),
+        on: &[],
+        kind: Kind::DynamicChoice { names: sound_style_options, get: sound_style_index, set: set_sound_style },
+    },
+    tgl!("controls.dynamic_pitch", Controls, n_!("Dynamic pitch"), "", &[], theme.controls.dynamic_pitch),
     num!("controls.sound_volume", Controls, n_!("Sound volume"), "", 10, 100, 10, "%", u8, theme.controls.sound_volume),
     sel!("game_page", GamePage, n_!("Game page"), "", &[], GamePage, game_page_name, theme.game_page),
     sel!(

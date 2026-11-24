@@ -308,17 +308,19 @@ fn a_theme_from_before_the_sound_options_gets_the_soft_sound_at_full_volume() {
     let text = json!({ "format": 1, "controls": { "hints": "off", "sounds": true } }).to_string();
     let c = ConsoleTheme::from_json(&text).unwrap().controls;
     assert!(c.sounds);
-    assert_eq!((c.sound_style, c.sound_volume), (SoundStyle::Soft, 100));
+    assert_eq!((c.sound_style.as_str(), c.sound_volume), ("soft", 100));
+    assert!(c.dynamic_pitch);
     let text = json!({ "format": 1, "controls": { "soundStyle": "classic", "soundVolume": 40 } }).to_string();
     let c = ConsoleTheme::from_json(&text).unwrap().controls;
-    assert_eq!((c.sound_style, c.sound_volume), (SoundStyle::Classic, 40));
+    assert_eq!((c.sound_style.as_str(), c.sound_volume), ("classic", 40));
 }
 
 #[test]
-fn the_sound_style_and_volume_are_repaired() {
-    let text = json!({ "format": 1, "controls": { "soundStyle": "loud", "soundVolume": 0 } }).to_string();
+fn custom_sound_styles_are_preserved_and_volume_is_repaired() {
+    let text = json!({ "format": 1, "controls": { "soundStyle": "Switch 2", "soundVolume": 0, "dynamicPitch": false } }).to_string();
     let c = ConsoleTheme::from_json(&text).unwrap().normalized().controls;
-    assert_eq!((c.sound_style, c.sound_volume), (SoundStyle::Soft, SOUND_VOLUME.0));
+    assert_eq!((c.sound_style.as_str(), c.sound_volume), ("Switch 2", SOUND_VOLUME.0));
+    assert!(!c.dynamic_pitch);
     let text = json!({ "format": 1, "controls": { "soundVolume": 200 } }).to_string();
     assert_eq!(ConsoleTheme::from_json(&text).unwrap().normalized().controls.sound_volume, SOUND_VOLUME.1);
 }

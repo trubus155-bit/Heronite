@@ -24,7 +24,7 @@ use heronite_launch::LaunchEvent;
 use super::super::CollectionView;
 use super::backdrop::{backdrop_id, backdrop_size};
 use crate::console::kit::{self, u};
-use crate::console::{self, hint, look, motion, Btn, Pad};
+use crate::console::{self, hint, look, motion, sound, Btn, Pad};
 use crate::icons::Icon;
 use crate::theme;
 
@@ -272,7 +272,13 @@ impl CollectionView {
         }
         self.session_card_event(ev);
         match ev {
-            LaunchEvent::Launching { app_name } => self.cover_launch(app_name, cx),
+            LaunchEvent::Launching { app_name } => {
+                let theme = look::theme();
+                if theme.controls.sounds {
+                    sound::launch(sound::Settings::of(&theme.controls));
+                }
+                self.cover_launch(app_name, cx);
+            }
             LaunchEvent::Running { app_name, pid } => {
                 let covering = self.console.launch.cover.as_mut().filter(|c| c.app_name == *app_name && c.leaving.is_none());
                 match covering {

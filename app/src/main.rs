@@ -48,6 +48,7 @@ fn main() {
     // Before anything (the logger included) creates the data folder.
     let migration = migrate_from_heroic();
     env_logger_init();
+    console::sound::prepare();
     log::info!("interface language: {}", heronite_i18n::current().code());
     // Sets an environment variable: before the app starts its threads.
     system::interface_gpu::apply(&heronite_data::AppPaths::for_data(&heronite_data::DataPaths::detect()));

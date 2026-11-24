@@ -162,6 +162,7 @@ A controller-first layout for the couch or a TV. Turn it on from the ☰ menu, t
 
 - **Themes:** eight layouts (Shelves, Spotlight, Cinema, Grid, Wheel, and more), with your own covers, colours, fonts, and menus.
 - **Share them:** seven built-in themes, or export yours as a `.heronite-theme.json` file.
+- **Navigation sounds:** built-in Soft and Classic sounds play through the system audio device. Optional mono or stereo WAV clips (up to five seconds) in `sounds/<style>/` beside the executable override individual sounds: `move.wav`, `confirm.wav`, `back.wav`, `tab.wav`, and `launch.wav`. Dynamic pitch, when enabled, applies only to rapid navigation.
 - **Light when off:** nothing loads until you turn it on. It can open at startup or when a controller connects.
 
 <table>

@@ -483,14 +483,22 @@ pub struct ColourOptions {
 pub struct ControlOptions {
     pub hints: Hints,
     pub sounds: bool,
-    pub sound_style: SoundStyle,
+    /// Built-in style id or an external `sounds/<style>/` folder name.
+    pub sound_style: String,
+    pub dynamic_pitch: bool,
     /// Percent, [`SOUND_VOLUME`].
     pub sound_volume: u8,
 }
 
 impl Default for ControlOptions {
     fn default() -> Self {
-        Self { hints: Hints::Always, sounds: false, sound_style: SoundStyle::Soft, sound_volume: SOUND_VOLUME.1 }
+        Self {
+            hints: Hints::Always,
+            sounds: false,
+            sound_style: SoundStyle::Soft.as_str().into(),
+            dynamic_pitch: true,
+            sound_volume: SOUND_VOLUME.1,
+        }
     }
 }
 

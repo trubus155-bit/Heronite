@@ -326,6 +326,7 @@ fn apply_opt(prefs: &mut ConsolePrefs, o: &Opt, arg: &Arg) {
     match (&o.kind, arg) {
         (Kind::Toggle { set, .. }, Arg::Value(Value::Toggle(on))) => set(prefs, *on),
         (Kind::Choice { names, set, .. }, Arg::Value(Value::Choice { index, .. })) if *index < names().len() => set(prefs, *index),
+        (Kind::DynamicChoice { names, set, .. }, Arg::Value(Value::Choice { index, .. })) if *index < names().len() => set(prefs, *index),
         (Kind::Number { min, max, set, .. }, Arg::Value(Value::Number { value, .. })) => set(prefs, (*value).clamp(*min, *max)),
         (Kind::Text { set, .. } | Kind::File { set, .. }, Arg::Text(s)) => {
             set(prefs, s);

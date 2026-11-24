@@ -22,6 +22,7 @@ pub fn differs(id: &str, prefs: &ConsolePrefs, base: &ConsoleTheme) -> bool {
     match &o.kind {
         Kind::Toggle { get, .. } => get(prefs) != get(&b),
         Kind::Choice { get, .. } => get(prefs) != get(&b),
+        Kind::DynamicChoice { get, .. } => get(prefs) != get(&b),
         Kind::Number { get, .. } => get(prefs) != get(&b),
         Kind::Text { get, .. } | Kind::File { get, .. } => get(prefs) != get(&b),
     }
@@ -37,6 +38,7 @@ pub fn reset_command(id: &str, prefs: &ConsolePrefs, base: &ConsoleTheme) -> Opt
     Some(match &o.kind {
         Kind::Toggle { get, .. } => Command::changed(id, Value::Toggle(get(&b))),
         Kind::Choice { get, .. } => Command::changed(id, Value::Choice { options: Vec::new(), index: get(&b) }),
+        Kind::DynamicChoice { get, .. } => Command::changed(id, Value::Choice { options: Vec::new(), index: get(&b) }),
         Kind::Number { min, max, step, suffix, get, .. } => {
             Command::changed(id, Value::Number { value: get(&b), min: *min, max: *max, step: *step, suffix })
         }

@@ -1,40 +1,31 @@
-//! Console mode's UI sounds (`controls.sounds`): four short tones written as
-//! WAV files in the cache folder and played by whatever player the system has
-//! (`pw-play`, `paplay`, `aplay`). A worker thread does all of it (finding the
-//! player, writing the files, starting the process), so a press never waits;
-//! the app has one such thread, started with the first sound.
+//! Console mode UI sounds, played through rodio's native audio output.
 //!
-//! The tones depend on the style and the volume (`controls.soundStyle`,
-//! `controls.soundVolume`). The files are named after them and after
-//! [`VERSION`], so a change never plays a stale file and one nobody asked for
-//! is never written.
+//! WAV packages live beside the executable at `sounds/<style>/<sound>.wav`.
 
-use std::ffi::OsStr;
+use std::collections::HashMap;
+use std::io::{BufReader, Cursor, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use anyhow::{anyhow, Result};
 use heronite_data::console_theme::{ControlOptions, SoundStyle, SOUND_VOLUME};
+use rodio::{buffer::SamplesBuffer, Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 
 use super::Pad;
 
-/// Part of every file name: bumped when the tones change, so the old files
-/// are not played (and are deleted).
-const VERSION: u32 = 1;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Sound {
     Move,
     Confirm,
     Back,
     Tab,
+    Launch,
 }
 
 impl Sound {
-    const ALL: [Sound; 4] = [Sound::Move, Sound::Confirm, Sound::Back, Sound::Tab];
+    const ALL: [Sound; 5] = [Sound::Move, Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch];
 
     fn name(self) -> &'static str {
         match self {
@@ -42,6 +33,7 @@ impl Sound {
             Sound::Confirm => "confirm",
             Sound::Back => "back",
             Sound::Tab => "tab",
+            Sound::Launch => "launch",
         }
     }
 
@@ -50,23 +42,21 @@ impl Sound {
     fn tones(self, style: SoundStyle) -> (&'static [(f32, f32)], f32) {
         match (style, self) {
             (SoundStyle::Classic, Sound::Move) => (&[(1150., 26.)], 0.22),
-            (SoundStyle::Classic, Sound::Confirm) => (&[(660., 45.), (990., 80.)], 0.3),
+            (SoundStyle::Classic, Sound::Confirm | Sound::Launch) => (&[(660., 45.), (990., 80.)], 0.3),
             (SoundStyle::Classic, Sound::Back) => (&[(720., 45.), (480., 80.)], 0.3),
             (SoundStyle::Classic, Sound::Tab) => (&[(880., 34.), (1180., 52.)], 0.26),
             // Low and round: a tick that dips a little, then rising (G4 to D5)
             // and falling (A4 to E4) fifths for yes and back.
             (SoundStyle::Soft, Sound::Move) => (&[(520., 60.)], 0.26),
-            (SoundStyle::Soft, Sound::Confirm) => (&[(392., 50.), (587., 110.)], 0.34),
+            (SoundStyle::Soft, Sound::Confirm | Sound::Launch) => (&[(392., 50.), (587., 110.)], 0.34),
             (SoundStyle::Soft, Sound::Back) => (&[(440., 50.), (330., 100.)], 0.34),
             (SoundStyle::Soft, Sound::Tab) => (&[(494., 38.), (587., 64.)], 0.3),
         }
     }
 
-    /// The least time between two plays: a held direction repeats every
-    /// ~85 ms, which would be a buzz.
     fn gap(self) -> Duration {
         match self {
-            Sound::Move => Duration::from_millis(110),
+            Sound::Move => Duration::from_millis(35),
             _ => Duration::from_millis(40),
         }
     }
@@ -84,16 +74,14 @@ pub fn for_pad(pad: Pad) -> Option<Sound> {
 }
 
 const RATE: u32 = 22_050;
+const MAX_SOUND_SECONDS: usize = 5;
+const MAX_SAMPLE_RATE: u32 = 192_000;
 
-/// How a tone is shaped.
+/// How a built-in tone is shaped.
 struct Voice {
-    /// Seconds to reach full level (a raised cosine).
     attack: f32,
-    /// The fade-out is `(1 - progress)` to this power.
     decay: f32,
-    /// Level of the octave above, which rounds the tone (0 = a pure sine).
     harmonic: f32,
-    /// Where the pitch ends, as a part of where it starts.
     glide: f32,
 }
 
@@ -107,25 +95,133 @@ impl Voice {
 }
 
 /// What the sounds are played with.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Settings {
-    pub style: SoundStyle,
+    pub style: String,
     /// Percent, [`SOUND_VOLUME`].
     pub volume: u8,
+    pub dynamic_pitch: bool,
 }
 
 impl Settings {
     pub fn of(c: &ControlOptions) -> Self {
-        Self { style: c.sound_style, volume: c.sound_volume.clamp(SOUND_VOLUME.0, SOUND_VOLUME.1) }
+        Self {
+            style: c.sound_style.clone(),
+            volume: c.sound_volume.clamp(SOUND_VOLUME.0, SOUND_VOLUME.1),
+            dynamic_pitch: c.dynamic_pitch,
+        }
     }
 
     /// The factor on a sound's level: steeper than linear, as loudness is.
-    fn gain(self) -> f32 {
+    fn gain(&self) -> f32 {
         (f32::from(self.volume) / 100.).powf(1.5)
     }
+}
 
-    fn file(self, sound: Sound) -> String {
-        format!("v{VERSION}-{}-{}-{}.wav", self.style.as_str(), self.volume, sound.name())
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StyleOption {
+    pub id: String,
+    pub label: String,
+}
+
+struct StyleCatalog {
+    root: Option<PathBuf>,
+    styles: Vec<StyleOption>,
+}
+
+const SOUND_README: &str = "External UI sound packages\n\
+\n\
+Create one subfolder per style inside sounds/, for example sounds/PS5/.\n\
+Use these WAV file names:\n\
+  move.wav     Navigation between items\n\
+  confirm.wav  Confirming a selection\n\
+  back.wav     Going back\n\
+  tab.wav      Changing tabs\n\
+  launch.wav   Launching a game\n\
+\n\
+Each WAV file must be no longer than 5 seconds. A style appears when it has\n\
+at least one valid sound file. Missing sounds use a built-in fallback.\n";
+
+fn sound_root() -> Option<PathBuf> {
+    match std::env::current_exe() {
+        Ok(exe) => exe.parent().map(|dir| dir.join("sounds")),
+        Err(e) => {
+            log::warn!("console sounds: cannot locate executable for sound packs: {e}");
+            None
+        }
+    }
+}
+
+fn prepare_sound_folder(root: &Path) {
+    if let Err(e) = std::fs::create_dir_all(root) {
+        log::warn!("console sounds: cannot create {}: {e}", root.display());
+        return;
+    }
+    let readme = root.join("README.txt");
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&readme) {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(SOUND_README.as_bytes()) {
+                log::warn!("console sounds: cannot write {}: {e}", readme.display());
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => log::warn!("console sounds: cannot create {}: {e}", readme.display()),
+    }
+}
+
+fn catalog() -> &'static StyleCatalog {
+    static CATALOG: OnceLock<StyleCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        let root = sound_root();
+        if let Some(root) = &root {
+            prepare_sound_folder(root);
+        }
+        let styles = root.as_deref().map(discover_styles).unwrap_or_default();
+        StyleCatalog { root, styles }
+    })
+}
+
+/// Creates the user sound-pack folder and its guide without starting audio.
+pub fn prepare() {
+    let _ = catalog();
+}
+
+/// Built-in styles followed by valid external folders in alphabetical order.
+pub fn available_styles() -> Vec<StyleOption> {
+    catalog().styles.clone()
+}
+
+fn resolve_style(style: &str) -> String {
+    let styles = &catalog().styles;
+    styles.iter().find(|candidate| candidate.id == style).map_or_else(
+        || "classic".to_owned(),
+        |candidate| candidate.id.clone(),
+    )
+}
+
+struct AudioSample {
+    channels: u16,
+    sample_rate: u32,
+    samples: Vec<f32>,
+}
+
+impl AudioSample {
+    fn from_wav(bytes: Vec<u8>) -> Result<Self> {
+        let decoder = Decoder::new(Cursor::new(bytes))?;
+        let channels = decoder.channels();
+        let sample_rate = decoder.sample_rate();
+        if channels == 0 || channels > 2 || sample_rate == 0 || sample_rate > MAX_SAMPLE_RATE {
+            return Err(anyhow!("audio has an invalid channel count or sample rate"));
+        }
+        let max_samples = sample_rate as usize * usize::from(channels) * MAX_SOUND_SECONDS;
+        let samples: Vec<_> = decoder.take(max_samples.saturating_add(1)).map(|sample| f32::from(sample) / f32::from(i16::MAX)).collect();
+        if samples.is_empty() {
+            return Err(anyhow!("audio contains no samples"));
+        }
+        if samples.len() > max_samples {
+            return Err(anyhow!("sound effects must be no longer than {MAX_SOUND_SECONDS} seconds"));
+        }
+        Ok(Self { channels, sample_rate, samples })
     }
 }
 
@@ -152,187 +248,323 @@ fn wav(tones: &[(f32, f32)], level: f32, voice: &Voice) -> Vec<u8> {
     out.extend_from_slice(&(36 + data).to_le_bytes());
     out.extend_from_slice(b"WAVEfmt ");
     out.extend_from_slice(&16u32.to_le_bytes());
-    out.extend_from_slice(&1u16.to_le_bytes()); // PCM
-    out.extend_from_slice(&1u16.to_le_bytes()); // mono
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
     out.extend_from_slice(&RATE.to_le_bytes());
     out.extend_from_slice(&(RATE * 2).to_le_bytes());
     out.extend_from_slice(&2u16.to_le_bytes());
     out.extend_from_slice(&16u16.to_le_bytes());
     out.extend_from_slice(b"data");
     out.extend_from_slice(&data.to_le_bytes());
-    for s in samples {
-        out.extend_from_slice(&s.to_le_bytes());
+    for sample in samples {
+        out.extend_from_slice(&sample.to_le_bytes());
     }
     out
 }
 
-/// The first player found on `path`, with the arguments that make it quiet
-/// and play one file.
-fn pick_player(path: &OsStr, exists: impl Fn(&Path) -> bool) -> Option<(PathBuf, &'static [&'static str])> {
-    const PLAYERS: [(&str, &[&str]); 3] = [("pw-play", &[]), ("paplay", &[]), ("aplay", &["-q"])];
-    PLAYERS.iter().find_map(|(name, args)| std::env::split_paths(path).map(|d| d.join(name)).find(|p| exists(p)).map(|p| (p, *args)))
+fn built_in(style: SoundStyle, sound: Sound) -> AudioSample {
+    let (tones, level) = sound.tones(style);
+    AudioSample::from_wav(wav(tones, level, &Voice::of(style))).expect("built-in WAV is valid")
 }
 
-/// A request to the worker.
+fn load_external(path: &std::path::Path) -> Option<AudioSample> {
+    match std::fs::read(path) {
+        Ok(bytes) => match AudioSample::from_wav(bytes) {
+            Ok(sample) => Some(sample),
+            Err(e) => {
+                log::warn!("console sounds: cannot load {}: {e}; using built-in sound", path.display());
+                None
+            }
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            log::warn!("console sounds: cannot read {}: {e}; using built-in sound", path.display());
+            None
+        }
+    }
+}
+
+fn validate_external(path: &Path) -> Result<()> {
+    let file = std::fs::File::open(path)?;
+    let decoder = Decoder::new(BufReader::new(file))?;
+    let channels = decoder.channels();
+    let sample_rate = decoder.sample_rate();
+    if channels == 0 || channels > 2 || sample_rate == 0 || sample_rate > MAX_SAMPLE_RATE {
+        return Err(anyhow!("audio has an invalid channel count or sample rate"));
+    }
+    let max_samples = sample_rate as usize * usize::from(channels) * MAX_SOUND_SECONDS;
+    let samples = decoder.take(max_samples.saturating_add(1)).count();
+    if samples == 0 {
+        return Err(anyhow!("audio contains no samples"));
+    }
+    if samples > max_samples {
+        return Err(anyhow!("sound effects must be no longer than {MAX_SOUND_SECONDS} seconds"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn load_or_builtin(path: Option<&std::path::Path>, fallback: AudioSample) -> AudioSample {
+    path.and_then(load_external).unwrap_or(fallback)
+}
+
+fn custom_pack_valid(root: &Path, style: &str) -> bool {
+    let dir = root.join(style);
+    if !dir.is_dir() {
+        return false;
+    }
+    let mut has_valid_sound = false;
+    for sound in Sound::ALL {
+        let path = dir.join(format!("{}.wav", sound.name()));
+        match std::fs::metadata(&path) {
+            Ok(metadata) if metadata.is_file() => {
+                if let Err(e) = validate_external(&path) {
+                    log::warn!("console sounds: invalid {}: {e}; using Classic", path.display());
+                    return false;
+                }
+                has_valid_sound = true;
+            }
+            Ok(_) => return false,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                log::warn!("console sounds: cannot inspect {}: {e}", path.display());
+                return false;
+            }
+        }
+    }
+    has_valid_sound
+}
+
+fn discover_styles(root: &Path) -> Vec<StyleOption> {
+    let mut styles = vec![
+        StyleOption { id: "soft".into(), label: "Soft".into() },
+        StyleOption { id: "classic".into(), label: "Classic".into() },
+    ];
+    let entries = match std::fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return styles,
+        Err(e) => {
+            log::warn!("console sounds: cannot scan {}: {e}", root.display());
+            return styles;
+        }
+    };
+    let mut custom = Vec::new();
+    for entry in entries {
+        let Ok(entry) = entry else { continue };
+        let Ok(file_type) = entry.file_type() else { continue };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let id = entry.file_name().to_string_lossy().into_owned();
+        if id.eq_ignore_ascii_case("soft") || id.eq_ignore_ascii_case("classic") {
+            continue;
+        }
+        if custom_pack_valid(root, &id) {
+            custom.push(StyleOption { label: id.clone(), id });
+        }
+    }
+    custom.sort_by(|a, b| a.id.to_lowercase().cmp(&b.id.to_lowercase()).then_with(|| a.id.cmp(&b.id)));
+    styles.extend(custom);
+    styles
+}
+
+fn builtin_style(style: &str) -> SoundStyle {
+    match style {
+        "soft" => SoundStyle::Soft,
+        _ => SoundStyle::Classic,
+    }
+}
+
+fn load_style(root: Option<&Path>, style: &str) -> HashMap<Sound, AudioSample> {
+    let is_custom = style != "soft" && style != "classic";
+    if is_custom && !root.is_some_and(|root| custom_pack_valid(root, style)) {
+        log::warn!("console sounds: sound pack {style:?} is missing or invalid; using Classic");
+        return load_style(root, "classic");
+    }
+
+    let fallback_style = builtin_style(style);
+    let mut sounds = HashMap::new();
+    for sound in Sound::ALL {
+        let path = root.map(|root| root.join(style).join(format!("{}.wav", sound.name())));
+        if let Some(sample) = path.as_deref().and_then(load_external) {
+            sounds.insert(sound, sample);
+        } else if sound != Sound::Launch {
+            sounds.insert(sound, built_in(fallback_style, sound));
+        }
+    }
+    sounds
+}
+
+fn sample_for(sounds: &HashMap<Sound, AudioSample>, sound: Sound) -> Option<&AudioSample> {
+    if sound == Sound::Launch && !sounds.contains_key(&Sound::Launch) {
+        sounds.get(&Sound::Confirm)
+    } else {
+        sounds.get(&sound)
+    }
+}
+
 struct Request {
     sound: Sound,
     settings: Settings,
-    /// A preview of a change: it takes the place of the sound the press that
-    /// made the change just started (with the settings from before it).
+    pitch: f32,
     replaces_press: bool,
 }
 
-/// A sound this young is the press's, for a preview to cut.
 const PRESS_WINDOW: Duration = Duration::from_millis(100);
+const MOVE_PITCH_WINDOW: Duration = Duration::from_millis(180);
+const MOVE_SCALE_SEMITONES: [u32; 5] = [0, 2, 4, 7, 9];
 
-/// Plays the sounds from a worker thread, one for the whole app.
+fn move_pitch(last_move: &mut Option<Instant>, step: &mut usize, now: Instant) -> f32 {
+    if last_move.is_some_and(|last| now.duration_since(last) < MOVE_PITCH_WINDOW) {
+        *step = (*step + 1) % MOVE_SCALE_SEMITONES.len();
+    } else {
+        *step = 0;
+    }
+    *last_move = Some(now);
+    2f32.powf(MOVE_SCALE_SEMITONES[*step] as f32 / 12.)
+}
+
+fn pitch_for(sound: Sound, dynamic_pitch: bool, preview: bool, last_move: &mut Option<Instant>, step: &mut usize, now: Instant) -> f32 {
+    if sound == Sound::Move && dynamic_pitch && !preview {
+        move_pitch(last_move, step, now)
+    } else {
+        if !preview {
+            *last_move = None;
+            *step = 0;
+        }
+        1.
+    }
+}
+
+/// Plays the sounds from one worker thread; it owns rodio's output stream and
+/// keeps only the active package's decoded sounds resident.
 struct Player {
     tx: Sender<Request>,
-    last: [Option<Instant>; 4],
+    last: [Option<Instant>; 5],
     last_preview: Option<Instant>,
+    last_move: Option<Instant>,
+    move_step: usize,
 }
 
 static PLAYER: Mutex<Option<Player>> = Mutex::new(None);
 
 impl Player {
-    fn new(dir: PathBuf) -> Self {
+    fn new(initial_style: String) -> Self {
         let (tx, rx) = channel();
-        if let Err(e) = std::thread::Builder::new().name("console-sounds".into()).spawn(move || work(&dir, rx)) {
-            log::warn!("console sounds: {e}");
+        if let Err(e) = std::thread::Builder::new().name("console-sounds".into()).spawn(move || work(rx, initial_style)) {
+            log::warn!("console sounds: could not start audio worker: {e}");
         }
-        Self { tx, last: [None; 4], last_preview: None }
+        Self { tx, last: [None; 5], last_preview: None, last_move: None, move_step: 0 }
     }
 
-    fn send(&mut self, sound: Sound, settings: Settings, preview: bool) {
+    fn send(&mut self, sound: Sound, settings: Settings, preview: bool, replaces_press: bool) {
         let now = Instant::now();
         let last = if preview { &mut self.last_preview } else { &mut self.last[sound as usize] };
         if last.is_some_and(|t| now.duration_since(t) < sound.gap()) {
             return;
         }
         *last = Some(now);
-        self.tx.send(Request { sound, settings, replaces_press: preview }).ok();
+        let pitch = pitch_for(sound, settings.dynamic_pitch, preview, &mut self.last_move, &mut self.move_step, now);
+        if self.tx.send(Request { sound, settings, pitch, replaces_press }).is_err() {
+            log::warn!("console sounds: audio worker has stopped");
+        }
     }
 }
 
-fn send(cache: &Path, sound: Sound, settings: Settings, preview: bool) {
-    let mut p = PLAYER.lock().unwrap_or_else(|e| e.into_inner());
-    p.get_or_insert_with(|| Player::new(cache.join("console-sounds"))).send(sound, settings, preview);
+fn player(settings: &Settings) {
+    let mut player = PLAYER.lock().unwrap_or_else(|e| e.into_inner());
+    player.get_or_insert_with(|| Player::new(settings.style.clone()));
 }
 
-/// Plays `sound` for a press. `cache` is the app's cache folder, where the
-/// WAV files are kept (written when first needed).
-pub fn play(cache: &Path, sound: Sound, settings: Settings) {
-    send(cache, sound, settings, false);
+/// Starts the worker with only the currently selected package resident.
+pub fn initialize(settings: Settings) {
+    player(&settings);
 }
 
-/// Plays `sound` as `settings` make it, for the user to hear a change. In
-/// console mode the press that made the change has just started its own
-/// sound with the old settings: this replaces it.
-pub fn preview(cache: &Path, sound: Sound, settings: Settings) {
-    send(cache, sound, settings, true);
+fn send(sound: Sound, settings: Settings, preview: bool, replaces_press: bool) {
+    let mut player = PLAYER.lock().unwrap_or_else(|e| e.into_inner());
+    player.get_or_insert_with(|| Player::new(settings.style.clone())).send(sound, settings, preview, replaces_press);
 }
 
-fn work(dir: &Path, rx: Receiver<Request>) {
-    let Some((player, args)) = std::env::var_os("PATH").and_then(|p| pick_player(&p, |f| f.is_file())) else {
-        log::info!("console sounds: no pw-play, paplay or aplay found");
-        return;
+/// Plays `sound` for a controller press.
+pub fn play(sound: Sound, settings: Settings) {
+    send(sound, settings, false, false);
+}
+
+/// Plays the game-launch sound and replaces the immediately preceding confirm press.
+pub fn launch(settings: Settings) {
+    send(Sound::Launch, settings, false, true);
+}
+
+/// Plays `sound` as `settings` make it, for the user to hear a change.
+pub fn preview(sound: Sound, settings: Settings) {
+    send(sound, settings, true, true);
+}
+
+fn work(rx: Receiver<Request>, initial_style: String) {
+    let catalog = catalog();
+    let style = resolve_style(&initial_style);
+    let sounds = load_style(catalog.root.as_deref(), &style);
+    let (_stream, output) = match OutputStream::try_default() {
+        Ok(stream) => stream,
+        Err(e) => {
+            log::warn!("console sounds: cannot open default audio output: {e}");
+            return;
+        }
     };
-    if let Err(e) = remove_stale(dir) {
-        log::warn!("console sounds: {e}");
-    }
-    let mut ready: Option<Settings> = None;
-    let mut running: Vec<(Child, Instant)> = Vec::new();
+    play_requests(rx, &output, catalog.root.as_deref(), style, sounds);
+}
+
+fn play_requests(
+    rx: Receiver<Request>,
+    output: &OutputStreamHandle,
+    root: Option<&Path>,
+    mut style: String,
+    mut sounds: HashMap<Sound, AudioSample>,
+) {
+    let mut running: Vec<(Sink, Instant)> = Vec::new();
     loop {
-        // While a sound plays, wake up to reap it (no zombies left behind).
-        let next = if running.is_empty() {
+        let request = if running.is_empty() {
             match rx.recv() {
-                Ok(r) => Some(r),
+                Ok(request) => Some(request),
                 Err(_) => break,
             }
         } else {
-            match rx.recv_timeout(Duration::from_millis(250)) {
-                Ok(r) => Some(r),
+            match rx.recv_timeout(Duration::from_millis(40)) {
+                Ok(request) => Some(request),
                 Err(RecvTimeoutError::Timeout) => None,
                 Err(RecvTimeoutError::Disconnected) => break,
             }
         };
-        running.retain_mut(|(c, _)| matches!(c.try_wait(), Ok(None)));
-        let Some(Request { sound, settings, replaces_press }) = next else { continue };
+        running.retain(|(sink, _)| !sink.empty());
+        let Some(Request { sound, settings, pitch, replaces_press }) = request else { continue };
+        let next_style = resolve_style(&settings.style);
+        if next_style != style {
+            sounds = load_style(root, &next_style);
+            style = next_style;
+        }
         if replaces_press {
-            for (c, started) in &mut running {
+            for (sink, started) in &running {
                 if started.elapsed() < PRESS_WINDOW {
-                    c.kill().ok();
+                    sink.stop();
                 }
             }
         }
-        // A burst never piles up processes.
         if running.len() >= 4 {
             continue;
         }
-        if ready != Some(settings) {
-            if let Err(e) = write_files(dir, settings) {
-                log::warn!("console sounds: {e}");
+        let Some(sample) = sample_for(&sounds, sound) else { continue };
+        let sink = match Sink::try_new(output) {
+            Ok(sink) => sink,
+            Err(e) => {
+                log::warn!("console sounds: cannot create playback sink: {e}");
                 continue;
             }
-            ready = Some(settings);
-        }
-        match Command::new(&player)
-            .args(args)
-            .arg(dir.join(settings.file(sound)))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-        {
-            Ok(child) => running.push((child, Instant::now())),
-            Err(e) => log::debug!("console sounds: {e}"),
-        }
+        };
+        sink.set_volume(settings.gain());
+        sink.append(SamplesBuffer::new(sample.channels, sample.sample_rate, sample.samples.clone()).speed(pitch));
+        running.push((sink, Instant::now()));
     }
-    for (mut c, _) in running {
-        c.wait().ok();
-    }
-}
-
-/// Writes the four files of `settings` that are not there yet, or are not
-/// whole (a crash can cut one short). Each goes to a temporary name first and
-/// is renamed into place, so a player never reads half a file.
-fn write_files(dir: &Path, settings: Settings) -> std::io::Result<()> {
-    static TEMPS: AtomicU32 = AtomicU32::new(0);
-    std::fs::create_dir_all(dir)?;
-    for s in Sound::ALL {
-        let file = dir.join(settings.file(s));
-        let (tones, level) = s.tones(settings.style);
-        let bytes = wav(tones, level * settings.gain(), &Voice::of(settings.style));
-        if std::fs::metadata(&file).is_ok_and(|m| m.is_file() && m.len() == bytes.len() as u64) {
-            continue;
-        }
-        let tmp = dir.join(format!("{}.{}-{}.tmp", settings.file(s), std::process::id(), TEMPS.fetch_add(1, Ordering::Relaxed)));
-        std::fs::write(&tmp, bytes)?;
-        std::fs::rename(&tmp, &file).inspect_err(|_| {
-            std::fs::remove_file(&tmp).ok();
-        })?;
-    }
-    Ok(())
-}
-
-/// A temporary file this old is a crash's: a younger one may be about to be renamed.
-const STALE_TEMP: Duration = Duration::from_secs(60);
-
-/// Deletes the files of another [`VERSION`] (and of the first version, which
-/// had no number in its names), and the temporary files a crash left.
-fn remove_stale(dir: &Path) -> std::io::Result<()> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Ok(()) };
-    let keep = format!("v{VERSION}-");
-    for e in entries.flatten() {
-        let name = e.file_name();
-        let name = name.to_string_lossy();
-        let abandoned =
-            name.ends_with(".tmp") && e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t.elapsed().is_ok_and(|d| d > STALE_TEMP));
-        if abandoned || (name.ends_with(".wav") && !name.starts_with(&keep)) {
-            std::fs::remove_file(e.path())?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -347,10 +579,9 @@ mod tests {
         bytes[44..].chunks(2).map(|c| i16::from_le_bytes([c[0], c[1]]).unsigned_abs()).max().unwrap()
     }
 
-    fn make(style: SoundStyle, volume: u8, sound: Sound) -> Vec<u8> {
-        let settings = Settings { style, volume };
+    fn make(style: SoundStyle, sound: Sound) -> Vec<u8> {
         let (tones, level) = sound.tones(style);
-        wav(tones, level * settings.gain(), &Voice::of(style))
+        wav(tones, level, &Voice::of(style))
     }
 
     #[test]
@@ -370,7 +601,7 @@ mod tests {
         for style in SoundStyle::ALL {
             for sound in Sound::ALL {
                 let (tones, level) = sound.tones(*style);
-                let bytes = make(*style, 100, sound);
+                let bytes = make(*style, sound);
                 let n = (bytes.len() - 44) / 2;
                 let last = i16::from_le_bytes([bytes[44 + (n - 1) * 2], bytes[45 + (n - 1) * 2]]);
                 let peak = f32::from(peak(&bytes));
@@ -385,80 +616,131 @@ mod tests {
     }
 
     #[test]
-    fn soft_is_lower_and_quieter_than_classic() {
-        let top = |style| Sound::ALL.iter().flat_map(|s| s.tones(style).0.iter().map(|t| t.0)).fold(0f32, f32::max);
-        assert!(top(SoundStyle::Soft) <= 600. && top(SoundStyle::Classic) > 1000.);
-        for sound in Sound::ALL {
-            assert!(sound.tones(SoundStyle::Soft).1 <= 0.35);
-        }
-        assert!(peak(&make(SoundStyle::Soft, 100, Sound::Move)) > 0);
+    fn decoded_builtin_wavs_are_preloaded_as_samples() {
+        let sample = AudioSample::from_wav(make(SoundStyle::Soft, Sound::Confirm)).unwrap();
+        assert_eq!(sample.channels, 1);
+        assert_eq!(sample.sample_rate, RATE);
+        assert!(!sample.samples.is_empty());
     }
 
     #[test]
-    fn the_volume_scales_the_sound() {
-        let at = |v| peak(&make(SoundStyle::Soft, v, Sound::Confirm));
-        let (low, mid, full) = (at(SOUND_VOLUME.0), at(50), at(SOUND_VOLUME.1));
-        assert!(0 < low && low < mid && mid < full, "{low} {mid} {full}");
-        assert!(f32::from(low) < 0.1 * f32::from(full));
-    }
-
-    #[test]
-    fn files_are_named_after_the_style_the_volume_and_the_version() {
-        let soft = Settings { style: SoundStyle::Soft, volume: 100 };
-        let names = [
-            soft.file(Sound::Move),
-            Settings { volume: 60, ..soft }.file(Sound::Move),
-            Settings { style: SoundStyle::Classic, ..soft }.file(Sound::Move),
-            soft.file(Sound::Tab),
-        ];
-        let unique: std::collections::HashSet<_> = names.iter().collect();
-        assert_eq!(unique.len(), names.len());
-        assert!(names.iter().all(|n| n.starts_with(&format!("v{VERSION}-")) && n.ends_with(".wav")));
-    }
-
-    #[test]
-    fn the_settings_come_from_the_options_and_stay_in_range() {
-        let mut c = ControlOptions::default();
-        assert_eq!(Settings::of(&c), Settings { style: SoundStyle::Soft, volume: 100 });
-        c.sound_volume = 0;
-        assert_eq!(Settings::of(&c).volume, SOUND_VOLUME.0);
-        c.sound_volume = 250;
-        assert_eq!(Settings::of(&c).volume, SOUND_VOLUME.1);
-    }
-
-    #[test]
-    fn each_setting_gets_its_own_files_and_old_ones_are_deleted() {
+    fn external_wav_replaces_builtin_and_missing_file_uses_builtin() {
         let dir = tempfile::tempdir().unwrap();
-        let soft = Settings { style: SoundStyle::Soft, volume: 70 };
-        let classic = Settings { style: SoundStyle::Classic, volume: 70 };
-        write_files(dir.path(), soft).unwrap();
-        write_files(dir.path(), classic).unwrap();
-        for s in Sound::ALL {
-            let a = std::fs::read(dir.path().join(soft.file(s))).unwrap();
-            let b = std::fs::read(dir.path().join(classic.file(s))).unwrap();
-            assert_ne!(a, b);
+        let path = dir.path().join("move.wav");
+        let external = wav(&[(880., 100.)], 0.8, &classic());
+        std::fs::write(&path, &external).unwrap();
+        let loaded = load_or_builtin(Some(path.as_path()), built_in(SoundStyle::Classic, Sound::Move));
+        let external_sample = AudioSample::from_wav(external).unwrap();
+        assert_eq!(loaded.samples, external_sample.samples);
+
+        let fallback = built_in(SoundStyle::Classic, Sound::Move);
+        let missing = dir.path().join("missing.wav");
+        let loaded = load_or_builtin(Some(missing.as_path()), built_in(SoundStyle::Classic, Sound::Move));
+        assert_eq!(loaded.samples, fallback.samples);
+
+        std::fs::write(&path, b"not a wav file").unwrap();
+        let loaded = load_or_builtin(Some(path.as_path()), built_in(SoundStyle::Classic, Sound::Move));
+        assert_eq!(loaded.samples, fallback.samples);
+    }
+
+    #[test]
+    fn style_discovery_keeps_builtins_and_sorts_valid_external_folders() {
+        let root = tempfile::tempdir().unwrap();
+        let valid = wav(&[(880., 100.)], 0.8, &classic());
+        for style in ["Switch 2", "PS5"] {
+            let dir = root.path().join(style);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("move.wav"), &valid).unwrap();
         }
-        // A file cut short is written again, whole.
-        let cut = dir.path().join(soft.file(Sound::Move));
-        let whole = std::fs::read(&cut).unwrap();
-        std::fs::write(&cut, &whole[..whole.len() / 2]).unwrap();
-        write_files(dir.path(), soft).unwrap();
-        assert_eq!(std::fs::read(&cut).unwrap(), whole);
-        // What the first version wrote, a file of another version, a temporary file.
-        let temp = dir.path().join("v1-soft-70-move.wav.1-0.tmp");
-        std::fs::write(&temp, b"x").unwrap();
-        remove_stale(dir.path()).unwrap();
-        assert!(temp.is_file(), "a young temporary file may be about to be renamed");
-        let old = std::fs::File::options().write(true).open(&temp).unwrap();
-        old.set_modified(std::time::SystemTime::now() - 2 * STALE_TEMP).unwrap();
-        drop(old);
-        std::fs::write(dir.path().join("move.wav"), b"x").unwrap();
-        std::fs::write(dir.path().join("v0-soft-70-move.wav"), b"x").unwrap();
-        remove_stale(dir.path()).unwrap();
-        let mut left: Vec<_> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
-        left.sort();
-        assert_eq!(left.len(), 8);
-        assert!(left.iter().all(|n| n.starts_with(&format!("v{VERSION}-"))));
+        let broken = root.path().join("broken");
+        std::fs::create_dir_all(&broken).unwrap();
+        std::fs::write(broken.join("move.wav"), &valid).unwrap();
+        std::fs::write(broken.join("back.wav"), b"truncated").unwrap();
+
+        let ids: Vec<_> = discover_styles(root.path()).into_iter().map(|style| style.id).collect();
+        assert_eq!(ids, ["soft", "classic", "PS5", "Switch 2"]);
+    }
+
+    #[test]
+    fn missing_launch_uses_the_active_packages_confirm_sound() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("custom");
+        std::fs::create_dir_all(&dir).unwrap();
+        let confirm = wav(&[(880., 100.)], 0.8, &classic());
+        std::fs::write(dir.join("confirm.wav"), &confirm).unwrap();
+        let sounds = load_style(Some(root.path()), "custom");
+        assert_eq!(sample_for(&sounds, Sound::Launch).unwrap().samples, sample_for(&sounds, Sound::Confirm).unwrap().samples);
+    }
+
+    #[test]
+    fn a_missing_or_invalid_custom_pack_falls_back_to_classic() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("custom");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("move.wav"), b"not wav").unwrap();
+        let sounds = load_style(Some(root.path()), "custom");
+        assert_eq!(sounds[&Sound::Move].samples, built_in(SoundStyle::Classic, Sound::Move).samples);
+        let missing = load_style(Some(root.path()), "deleted");
+        assert_eq!(missing[&Sound::Move].samples, built_in(SoundStyle::Classic, Sound::Move).samples);
+    }
+
+    #[test]
+    fn sound_folder_readme_is_created_without_overwriting_user_content() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("sounds");
+        prepare_sound_folder(&root);
+        let readme = root.join("README.txt");
+        let text = std::fs::read_to_string(&readme).unwrap();
+        for file in ["move.wav", "confirm.wav", "back.wav", "tab.wav", "launch.wav"] {
+            assert!(text.contains(file));
+        }
+        assert!(text.contains("5 seconds"));
+        std::fs::write(&readme, "user notes").unwrap();
+        prepare_sound_folder(&root);
+        assert_eq!(std::fs::read_to_string(readme).unwrap(), "user notes");
+    }
+
+    #[test]
+    fn rapid_moves_step_up_a_pentatonic_scale_and_reset_after_a_pause() {
+        let start = Instant::now();
+        let mut last = None;
+        let mut step = 0;
+        let pitches: Vec<_> = (0..5).map(|i| move_pitch(&mut last, &mut step, start + Duration::from_millis(i * 80))).collect();
+        assert!(pitches.windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(move_pitch(&mut last, &mut step, start + Duration::from_secs(1)), 1.);
+    }
+
+    #[test]
+    fn dynamic_pitch_only_changes_fast_navigation_when_enabled() {
+        let start = Instant::now();
+        let mut last = None;
+        let mut step = 0;
+        let first = pitch_for(Sound::Move, true, false, &mut last, &mut step, start);
+        let second = pitch_for(Sound::Move, true, false, &mut last, &mut step, start + Duration::from_millis(80));
+        assert_eq!(first, 1.);
+        assert!(second > 1.);
+
+        assert_eq!(pitch_for(Sound::Move, false, false, &mut last, &mut step, start + Duration::from_millis(120)), 1.);
+        for sound in [Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch] {
+            assert_eq!(pitch_for(sound, true, false, &mut last, &mut step, start + Duration::from_millis(150)), 1.);
+        }
+        assert_eq!(pitch_for(Sound::Move, true, true, &mut last, &mut step, start + Duration::from_millis(180)), 1.);
+    }
+
+    #[test]
+    fn settings_clamp_volume_and_scale_gain() {
+        let mut controls = ControlOptions::default();
+        assert_eq!(Settings::of(&controls), Settings { style: "soft".into(), volume: 100, dynamic_pitch: true });
+        controls.sound_volume = 0;
+        assert_eq!(Settings::of(&controls).volume, SOUND_VOLUME.0);
+        controls.sound_volume = 250;
+        assert_eq!(Settings::of(&controls).volume, SOUND_VOLUME.1);
+        assert!(Settings { style: "soft".into(), volume: 50, dynamic_pitch: true }.gain() < Settings {
+            style: "soft".into(),
+            volume: 100,
+            dynamic_pitch: true
+        }
+        .gain());
     }
 
     #[test]
@@ -468,14 +750,6 @@ mod tests {
         assert_eq!(for_pad(Pad::B), Some(Sound::Back));
         assert_eq!(for_pad(Pad::RB), Some(Sound::Tab));
         assert_eq!(for_pad(Pad::ScrollDown), None);
-    }
-
-    #[test]
-    fn the_first_player_on_the_path_wins() {
-        let path = std::env::join_paths(["/a", "/b"]).unwrap();
-        let has = |p: &Path| p == Path::new("/b/aplay") || p == Path::new("/a/paplay");
-        assert_eq!(pick_player(&path, has), Some((PathBuf::from("/a/paplay"), &[][..])));
-        assert_eq!(pick_player(&path, |p| p == Path::new("/b/aplay")), Some((PathBuf::from("/b/aplay"), &["-q"][..])));
-        assert_eq!(pick_player(&path, |_| false), None);
+        assert_eq!(Sound::Launch.name(), "launch");
     }
 }

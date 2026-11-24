@@ -58,6 +58,7 @@ dirs = "6"
 notify = "8"
 notify-rust = "4"
 shlex = "1"
+rodio = { version = "0.20.1", default-features = false, features = ["wav"] }
 
 # Controllers for console mode. Windows reads them through SDL instead
 # (heronite-platform's `controllers`).

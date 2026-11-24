@@ -155,7 +155,7 @@ pub fn change<H: Host>(h: &mut H, cmd: &Command, cx: &mut Context<H>) -> bool {
         }
     };
     st.notice = None;
-    preview_sound(&app, &cmd.id, &st.prefs.theme);
+    preview_sound(&cmd.id, &st.prefs.theme);
     let after = st.prefs.theme.clone();
     covers_notice(&before, &after, cx);
     cx.notify();
@@ -164,13 +164,13 @@ pub fn change<H: Host>(h: &mut H, cmd: &Command, cx: &mut Context<H>) -> bool {
 
 /// A sound option changed (and sounds are on): plays a sound the way the
 /// options now make it, so the choice is heard when it is made.
-fn preview_sound(app: &AppPaths, id: &str, theme: &ConsoleTheme) {
+fn preview_sound(id: &str, theme: &ConsoleTheme) {
     let c = &theme.controls;
     if !c.sounds || !id.starts_with("controls.sound") {
         return;
     }
     let sound = if id == "controls.sound_volume" { sound::Sound::Move } else { sound::Sound::Confirm };
-    sound::preview(&app.cache, sound, sound::Settings::of(c));
+    sound::preview(sound, sound::Settings::of(c));
 }
 
 /// The theme now draws a cover family the one before did not: the line
