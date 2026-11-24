@@ -36,6 +36,13 @@ use crate::console::pointer;
 use crate::console::{look, Hint, Pad};
 use crate::icons::Icon;
 
+pub(super) fn platform_or_source_label(g: &CollectionGame) -> &str {
+    g.metadata
+        .as_deref()
+        .and_then(|metadata| metadata.platforms.iter().map(|platform| platform.trim()).find(|platform| !platform.is_empty()))
+        .unwrap_or(g.source_label)
+}
+
 /// Focus of one tab in every layout.
 #[derive(Default)]
 pub(crate) struct TabNav {

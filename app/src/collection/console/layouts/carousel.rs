@@ -407,7 +407,7 @@ impl CollectionView {
             .child(divider())
             .child(fact(tr!("Last played"), div().child(last)))
             .child(divider())
-            .child(fact(tr!("Platform"), div().child(g.source_label.to_string())));
+            .child(fact(tr!("Platform"), div().child(super::platform_or_source_label(g).to_string())));
         if let Some((name, colour)) = self.console_status(g) {
             let dot = div().flex_none().size(u(8.)).rounded_full().bg(kit::tint(colour));
             row = row.child(divider()).child(fact(tr!("Status"), div().child(dot).child(name)));

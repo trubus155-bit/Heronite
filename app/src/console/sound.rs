@@ -105,11 +105,7 @@ pub struct Settings {
 
 impl Settings {
     pub fn of(c: &ControlOptions) -> Self {
-        Self {
-            style: c.sound_style.clone(),
-            volume: c.sound_volume.clamp(SOUND_VOLUME.0, SOUND_VOLUME.1),
-            dynamic_pitch: c.dynamic_pitch,
-        }
+        Self { style: c.sound_style.clone(), volume: c.sound_volume.clamp(SOUND_VOLUME.0, SOUND_VOLUME.1), dynamic_pitch: c.dynamic_pitch }
     }
 
     /// The factor on a sound's level: steeper than linear, as loudness is.
@@ -193,10 +189,7 @@ pub fn available_styles() -> Vec<StyleOption> {
 
 fn resolve_style(style: &str) -> String {
     let styles = &catalog().styles;
-    styles.iter().find(|candidate| candidate.id == style).map_or_else(
-        || "classic".to_owned(),
-        |candidate| candidate.id.clone(),
-    )
+    styles.iter().find(|candidate| candidate.id == style).map_or_else(|| "classic".to_owned(), |candidate| candidate.id.clone())
 }
 
 struct AudioSample {
@@ -336,10 +329,8 @@ fn custom_pack_valid(root: &Path, style: &str) -> bool {
 }
 
 fn discover_styles(root: &Path) -> Vec<StyleOption> {
-    let mut styles = vec![
-        StyleOption { id: "soft".into(), label: "Soft".into() },
-        StyleOption { id: "classic".into(), label: "Classic".into() },
-    ];
+    let mut styles =
+        vec![StyleOption { id: "soft".into(), label: "Soft".into() }, StyleOption { id: "classic".into(), label: "Classic".into() }];
     let entries = match std::fs::read_dir(root) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return styles,
@@ -735,12 +726,10 @@ mod tests {
         assert_eq!(Settings::of(&controls).volume, SOUND_VOLUME.0);
         controls.sound_volume = 250;
         assert_eq!(Settings::of(&controls).volume, SOUND_VOLUME.1);
-        assert!(Settings { style: "soft".into(), volume: 50, dynamic_pitch: true }.gain() < Settings {
-            style: "soft".into(),
-            volume: 100,
-            dynamic_pitch: true
-        }
-        .gain());
+        assert!(
+            Settings { style: "soft".into(), volume: 50, dynamic_pitch: true }.gain()
+                < Settings { style: "soft".into(), volume: 100, dynamic_pitch: true }.gain()
+        );
     }
 
     #[test]

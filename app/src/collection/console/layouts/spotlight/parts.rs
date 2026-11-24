@@ -13,6 +13,7 @@ use heronite_i18n::{tr, trn};
 use super::super::super::super::store_badges;
 use super::super::super::super::CollectionView;
 use super::super::super::hero::{clip, played_time};
+use super::super::platform_or_source_label;
 use crate::collection::data::played_ago;
 use crate::console::kit::{self, u};
 use crate::console::{look, motion};
@@ -201,8 +202,10 @@ impl CollectionView {
         let played = played_time(g).unwrap_or_else(dash);
         let last = g.last_played.as_deref().and_then(played_ago).unwrap_or_else(|| tr!("Never").to_string());
         let icon = store_badges::game_icons(&self.with_copies(&g.key)).first().copied();
-        let platform =
-            div().gap(u(7.)).children(icon.map(|i| crate::ui::icon(i, u(17.), theme::text_primary()))).child(g.source_label.to_string());
+        let platform = div()
+            .gap(u(7.))
+            .children(icon.map(|i| crate::ui::icon(i, u(17.), theme::text_primary())))
+            .child(platform_or_source_label(g).to_string());
         let mut row = div()
             .flex()
             .items_center()
