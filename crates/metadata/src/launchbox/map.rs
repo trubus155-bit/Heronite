@@ -48,6 +48,7 @@ fn region_of(lang: Lang) -> &'static str {
         Lang::Es => "Spain",
         Lang::De => "Germany",
         Lang::Fr => "France",
+        Lang::Id => "Japan",
     }
 }
 

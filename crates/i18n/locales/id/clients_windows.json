@@ -1,0 +1,16 @@
+{
+  "{client} is not installed on this PC. Set it up in Stores → {client}.": "{client} tidak terpasang di PC ini. Di Toko {client}.",
+  "{client} was not installed: the administrator prompt was declined.": "{client} belum dipasang: prompt administrator ditolak.",
+  "The installer of {client} closed before {client} was installed.": "Pemasang {client} ditutup sebelum {client} dipasang.",
+  "The folder of this game was not found. Refresh the games of {client} in Stores → {client}.": "Folder permainan ini tidak ditemukan. Segarkan permainan {client} di Toko {client}.",
+  "Heronite downloads the official installer of {client} and runs it. Windows may ask you to allow it.": "Heronite mengunduh pemasang resmi {client} dan menjalankannya. Windows mungkin meminta Anda untuk mengizinkannya.",
+  "Installed in": "Terpasang di",
+  "You sign in, install and update games in {client}; Heronite starts them through it and counts the play time for the game, not for {client}.": "Anda mendaftar, memasang dan memperbarui game di {client}; Heronite memulainya dan menghitung waktu bermain untuk permainan, bukan untuk {client}.",
+  "Downloads the official installer and runs it.": "Mengunduh pemasang resmi dan menjalankannya.",
+  "Download its installer and install it": "Unduh pemasang dan instal itu",
+  "Closes it and its helper programs": "Menutup dan membantu program",
+  "Blizzard games": "Permainan badai salju",
+  "EA games": "Permainan EA",
+  "Ubisoft games": "Permainan Ubisoften",
+  "Rockstar games": "Rockstar games"
+}

@@ -1,0 +1,22 @@
+{
+  "Cannot use {path}: it is not a folder": "Tidak dapat menggunakan {path}: ini bukan sebuah folder",
+  "Could not download fuse-overlayfs: {error}": "Tidak dapat mengunduh fuse- overlayfs: {error}",
+  "Heronite needs FUSE (fusermount3) to apply mods. Install the fuse3 package.": "Heronite membutuhkan FUSE (fusermount3) untuk menerapkan mod. Pasang paket fuse3.",
+  "Heronite needs FUSE to apply mods, but /dev/fuse is missing. Load the fuse kernel module.": "Heronite perlu FUSE untuk menerapkan mods, tapi / dev / sekering hilang. Muat modul kernel sekering.",
+  "Mods cannot be applied over {path}": "Mods tidak dapat diterapkan di {path}",
+  "Mods could not be applied: {error}": "Mode tidak dapat diterapkan: {error}",
+  "Not a valid game key: {key}": "Bukan kunci permainan yang valid: {key}",
+  "The archive has no files to install": "Arsip tidak memiliki berkas untuk diinstal",
+  "The fuse-overlayfs download is corrupt (its checksum does not match)": "Download fuse- overlayfs terkorupsi (checksum tidak cocok)",
+  "The game is running with mods; close it first": "Permainan berjalan dengan mods; menutupnya pertama",
+  "The mods folder and the game folder cannot be inside each other": "Folder mod dan folder game tidak dapat berada di dalam satu sama lain",
+  "The overwrite folder is empty": "Folder penimpa kosong",
+  "The path {path} is not allowed": "Jalur {path} tidak diperbolehkan",
+  "fuse-overlayfs did not mount {path}: {error}": "Fuse- overlayfs tidak mengait {path}: {error}",
+  "fuse-overlayfs failed: {error}": "use- overlayfs gagal: {error}",
+  "fuse-overlayfs is needed to apply mods and could not be found. Install the fuse-overlayfs package.": "fuse- overlayfs dibutuhkan untuk menerapkan mods dan tidak dapat ditemukan. Pasang paket fuse--overlayfs.",
+  "fuse-overlayfs is not available for {arch}; install it with your package manager": "fuse- overlayfs tidak tersedia untuk {arch}; instal dengan manajer paket Anda",
+  "{n} enabled mod is missing its files: {names}. Reinstall or remove it in Mods.": "{n} aktif mod hilang filenya: {names}. Instal ulang atau hapus dalam Mode.",
+  "{n} enabled mods are missing their files: {names}. Reinstall or remove them in Mods.": "Mode {n} aktif kehilangan berkas mereka: {names}. Pasang atau hapus dalam mode.",
+  "{path} is still mounted from an earlier run and could not be unmounted": "{path} masih dikait dari run sebelumnya dan tidak dapat dilepas"
+}

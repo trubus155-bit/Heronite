@@ -1,7 +1,7 @@
 //! Interface language. The English text is the key: `tr!("Play")` is "Play"
 //! in English and its entry in `locales/<lang>/*.json` in the other languages
-//! (`pt-BR`, `es`, `de`, `fr`; English again when there is none, so nothing ever shows up
-//! empty).
+//! (`pt-BR`, `es`, `de`, `fr`, `id`; English again when there is none, so nothing ever shows
+//! up empty).
 //!
 //! - `tr!("Play")` gives a `&'static str`;
 //! - `tr!("{n} of {total} games", n = done, total)` fills named placeholders
@@ -30,12 +30,13 @@ pub enum Lang {
     Es,
     De,
     Fr,
+    Id,
 }
 
 impl Lang {
-    pub const ALL: [Lang; 5] = [Lang::En, Lang::PtBr, Lang::Es, Lang::De, Lang::Fr];
+    pub const ALL: [Lang; 6] = [Lang::En, Lang::PtBr, Lang::Es, Lang::De, Lang::Fr, Lang::Id];
     /// The languages with a `locales/` folder.
-    pub const TRANSLATED: [Lang; 4] = [Lang::PtBr, Lang::Es, Lang::De, Lang::Fr];
+    pub const TRANSLATED: [Lang; 5] = [Lang::PtBr, Lang::Es, Lang::De, Lang::Fr, Lang::Id];
 
     /// BCP 47 tag, also what the settings file stores.
     pub fn code(self) -> &'static str {
@@ -45,6 +46,7 @@ impl Lang {
             Lang::Es => "es",
             Lang::De => "de",
             Lang::Fr => "fr",
+            Lang::Id => "id",
         }
     }
 
@@ -56,12 +58,13 @@ impl Lang {
             Lang::Es => "Español",
             Lang::De => "Deutsch",
             Lang::Fr => "Français",
+            Lang::Id => "Bahasa Indonesia",
         }
     }
 
     /// A language or locale code (`pt-BR`, `pt_BR.UTF-8`, `en_US`, `es_MX`,
     /// `de_AT`...); any Portuguese is Brazilian Portuguese, any Spanish the
-    /// neutral `es`, any German `de` and any French `fr`.
+    /// neutral `es`, any German `de`, French `fr`, and Indonesian `id`.
     pub fn parse(code: &str) -> Option<Lang> {
         let base = code.trim().split(['.', '@']).next().unwrap_or("");
         let lang = base.split(['_', '-']).next().unwrap_or("").to_ascii_lowercase();
@@ -71,6 +74,7 @@ impl Lang {
             "es" => Some(Lang::Es),
             "de" => Some(Lang::De),
             "fr" => Some(Lang::Fr),
+            "id" => Some(Lang::Id),
             _ => None,
         }
     }
@@ -81,6 +85,7 @@ impl Lang {
             2 => Lang::Es,
             3 => Lang::De,
             4 => Lang::Fr,
+            5 => Lang::Id,
             _ => Lang::En,
         }
     }
@@ -95,7 +100,7 @@ impl Lang {
     pub fn decimal_separator(self) -> char {
         match self {
             Lang::En => '.',
-            Lang::PtBr | Lang::Es | Lang::De | Lang::Fr => ',',
+            Lang::PtBr | Lang::Es | Lang::De | Lang::Fr | Lang::Id => ',',
         }
     }
 
@@ -177,12 +182,14 @@ fn translations(lang: Lang) -> Option<&'static HashMap<String, String>> {
     static ES_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
     static DE_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
     static FR_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
+    static ID_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
     let cell = match lang {
         Lang::En => return None,
         Lang::PtBr => &PT_BR_MAP,
         Lang::Es => &ES_MAP,
         Lang::De => &DE_MAP,
         Lang::Fr => &FR_MAP,
+        Lang::Id => &ID_MAP,
     };
     Some(cell.get_or_init(|| {
         let mut map = HashMap::new();
@@ -204,6 +211,7 @@ pub fn embedded_files(lang: Lang) -> &'static [(&'static str, &'static str)] {
         Lang::Es => ES,
         Lang::De => DE,
         Lang::Fr => FR,
+        Lang::Id => ID,
     }
 }
 
@@ -330,7 +338,7 @@ pub fn decimal(v: f64, digits: usize) -> String {
 pub fn grouped(v: i64) -> String {
     let sep = match current() {
         Lang::En => ',',
-        Lang::PtBr | Lang::Es | Lang::De => '.',
+        Lang::PtBr | Lang::Es | Lang::De | Lang::Id => '.',
         Lang::Fr => '\u{202f}',
     };
     let digits = v.unsigned_abs().to_string();
@@ -479,12 +487,15 @@ mod tests {
         assert_eq!(Lang::parse("fr_FR.UTF-8"), Some(Lang::Fr));
         assert_eq!(Lang::parse("fr-CA"), Some(Lang::Fr));
         assert_eq!(Lang::parse("FR_ci"), Some(Lang::Fr));
+        assert_eq!(Lang::parse("id_ID.UTF-8"), Some(Lang::Id));
+        assert_eq!(Lang::parse("id-ID"), Some(Lang::Id));
         assert_eq!(Lang::parse("ja_JP"), None);
         assert_eq!(Lang::parse("C"), None);
         assert_eq!(Preference::parse("pt-BR"), Preference::Fixed(Lang::PtBr));
         assert_eq!(Preference::parse("fr"), Preference::Fixed(Lang::Fr));
         assert_eq!(Preference::parse("de"), Preference::Fixed(Lang::De));
         assert_eq!(Preference::parse("es"), Preference::Fixed(Lang::Es));
+        assert_eq!(Preference::parse("id"), Preference::Fixed(Lang::Id));
         for p in [Preference::System].into_iter().chain(Lang::ALL.map(Preference::Fixed)) {
             assert_eq!(Preference::parse(p.as_str()), p);
         }
@@ -507,6 +518,7 @@ mod tests {
         assert_eq!(lang_from_env(env(&[("LANG", "de_DE.UTF-8")])), Lang::De);
         assert_eq!(lang_from_env(env(&[("LANG", "es_AR.UTF-8")])), Lang::Es);
         assert_eq!(lang_from_env(env(&[("LANG", "en_US.UTF-8"), ("LANGUAGE", "ja:es:en")])), Lang::Es);
+        assert_eq!(lang_from_env(env(&[("LANG", "en_US.UTF-8"), ("LANGUAGE", "id:en")])), Lang::Id);
         assert_eq!(lang_from_env(env(&[("LANG", ""), ("LC_ALL", "")])), Lang::En);
     }
 
@@ -563,6 +575,15 @@ mod tests {
         assert_eq!(plural(&0.5, "one", "other"), "one");
         assert_eq!(plural(&1.5f32, "one", "other"), "one");
         assert_eq!(plural(&-1, "one", "other"), "other");
+        set(Lang::Id);
+        assert_eq!(tr!("Settings"), "Pengaturan");
+        assert_eq!(tr!("Play"), "Mainkan");
+        assert_eq!(tr!("{time} played", time = "Hades"), "Hades dimainkan");
+        assert_eq!(decimal(2.5, 1), "2,5");
+        assert_eq!(grouped(-1234567), "-1.234.567");
+        assert!(!Lang::Id.lowercase_names());
+        assert!(Lang::Id.clock_24h());
+        assert_eq!(Lang::Id.native_name(), "Bahasa Indonesia");
         set(Lang::En);
     }
 }

@@ -1,0 +1,18 @@
+{
+  "Add the games of GOG Galaxy": "Tambahkan permainan dari Galaksi GOG",
+  "Added {n} game from GOG Galaxy": "Ditambahkan permainan {n} dari Galaksi GOG",
+  "Added {n} games from GOG Galaxy": "Ditambahkan permainan {n} dari Galaksi GOG",
+  "Could not add the games of GOG Galaxy: {error}": "Tidak dapat menambahkan permainan dari Galaksi GOG: {error}",
+  "Could not move the game: {error}": "Tidak dapat memindahkan permainan: {error}",
+  "Could not run {program}: {error}": "Tidak dapat menjalankan {program}: {error}",
+  "GOG Galaxy has no other games of your library": "GOG Galaxy tidak memiliki permainan lain dari perpustakaan Anda",
+  "GOG Galaxy installed this game: move it in GOG Galaxy": "GOG Galaksi memasang permainan ini: memindahkannya di Galaksi GOG",
+  "GOG Galaxy installed this game: repair it in GOG Galaxy": "GOG Galaksi memasang permainan ini: perbaiki di Galaksi GOG",
+  "GOG Galaxy installed this game: update it in GOG Galaxy": "GOG Galaksi memasang permainan ini: perbarui di Galaksi GOG",
+  "Games of GOG Galaxy": "Permainan Galaksi GOG",
+  "Installing the game's requirements...": "Memasang persyaratan permainan...",
+  "Its files stay where GOG Galaxy put them: uninstall it in GOG Galaxy to delete them.": "Berkas-berkasnya tetap berada di mana GOG Galaxy menaruhnya: Uninstall di Galaksi GOG untuk menghapusnya.",
+  "Show the games GOG Galaxy installed on this PC as installed, without downloading them again. GOG Galaxy keeps updating them.": "Tampilkan game yang GOG Galaxy terpasang di PC ini seperti yang terpasang, tanpa mengunduh mereka lagi. GOG Galaxy terus meng-update mereka.",
+  "{program} needs administrator rights: answer the Windows prompt": "{program} membutuhkan hak administrator: menjawab prompt Windows",
+  "{program} was not installed: the administrator prompt was declined. It is asked again at the next launch.": "{program} belum dipasang: prompt administrator ditolak. Ditanyakan lagi pada peluncuran berikutnya."
+}

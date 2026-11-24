@@ -1,0 +1,6 @@
+{
+  "Shortcut registered with Windows and ready. The game's monitor is captured with DXGI Desktop Duplication.": "Jalan pintas terdaftar dengan Windows dan siap. Monitor game ini diambil dengan DXGI Desktop Duplikasi.",
+  "The shortcut {accelerator} could not be registered: {error}": "Jalan pintas {accelerator} tidak dapat didaftarkan: {error}",
+  "The shortcut {accelerator} is already used by another program": "Jalan pintas {accelerator} telah dipakai oleh program lain",
+  "While a game runs, Windows hands this shortcut to Heronite alone: the game does not receive it, so pick keys the game does not use.": "Sementara permainan berjalan, Windows menyerahkan jalan pintas ini ke Heronite saja: permainan tidak menerimanya, jadi pilih tombol yang tidak digunakan."
+}

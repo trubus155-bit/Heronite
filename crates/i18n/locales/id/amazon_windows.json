@@ -1,0 +1,16 @@
+{
+  "The game's files belong to the Amazon Games app and were left in {folder}. Uninstall it there to delete them.": "Berkas permainan milik aplikasi Amazon Games dan ditinggalkan di {folder}. Lepaskan untuk menghapusnya.",
+  "The game's files belong to the Amazon Games app: move the game there": "Berkas permainan milik aplikasi Amazon Games: pindahkan permainan ke sana",
+  "The Amazon Games app was not found on this PC": "Aplikasi Amazon Games tidak ditemukan di PC ini",
+  "{n} game of the Amazon Games app could not be added ({title}: {error})": "{n} game dari aplikasi Amazon Games tidak dapat ditambahkan ({title}: {error})",
+  "{n} games of the Amazon Games app could not be added ({title}: {error})": "{n} game dari aplikasi Amazon Games tidak dapat ditambahkan ({title}: {error})",
+  "Added {n} game from the Amazon Games app": "Ditambahkan {n} permainan dari aplikasi Amazon Games",
+  "Added {n} games from the Amazon Games app": "Ditambahkan permainan {n} dari aplikasi Amazon Games",
+  "The Amazon Games app has no other games to add": "Aplikasi Amazon Games tidak memiliki permainan lain untuk ditambahkan",
+  "Could not add the games of the Amazon Games app: {error}": "Tidak dapat menambahkan permainan aplikasi Amazon Games: {error}",
+  "Games of the Amazon Games app": "Permainan aplikasi Amazon Games",
+  "Add the games the Amazon Games app installed on this PC, without downloading them again.": "Tambahkan permainan aplikasi Amazon Games yang terpasang di PC ini, tanpa mengunduh mereka lagi.",
+  "Adding...": "Menambah...",
+  "Add games": "Tambah permainan",
+  "Add the games of the Amazon Games app": "Tambahkan permainan aplikasi Amazon Games"
+}

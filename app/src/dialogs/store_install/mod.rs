@@ -88,6 +88,7 @@ fn ui_language() -> &'static str {
         Lang::Es => "es-ES",
         Lang::De => "de-DE",
         Lang::Fr => "fr-FR",
+        Lang::Id => "id-ID",
     }
 }
 
@@ -102,6 +103,7 @@ fn language_name(code: &str) -> String {
         "es-MX" => "Español (México)",
         "fr-FR" => "Français",
         "de-DE" => "Deutsch",
+        "id-ID" | "id" => "Bahasa Indonesia",
         "it-IT" => "Italiano",
         "ru-RU" => "Русский",
         "pl-PL" => "Polski",
