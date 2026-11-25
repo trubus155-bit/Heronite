@@ -21,9 +21,8 @@ The supported formats are `.wav`, `.ogg`, `.mp3`, and `.flac`. Use one extension
 | `launch.*` | A game launch begins | Falls back to `confirm` |
 | `notification.*` | A toast or banner appears | Falls back to `confirm` |
 | `restore.*` | Heronite's window is restored after a game | Falls back to `confirm` |
-| `launch_success.*` | A game process starts successfully | Silent; there is no fallback |
 
-Built-in styles provide the first four navigation sounds. `launch_success` is optional and is silent unless that file exists in the selected sound pack.
+Built-in styles provide the navigation and confirmation sounds. A custom `notification` file is loaded from the selected style folder; only when it is absent or invalid does it fall back to `confirm`.
 
 ## Dynamic Pitch
 

@@ -25,12 +25,10 @@ pub enum Sound {
     Launch,
     Notification,
     Restore,
-    LaunchSuccess,
 }
 
 impl Sound {
-    const ALL: [Sound; 8] =
-        [Sound::Move, Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch, Sound::Notification, Sound::Restore, Sound::LaunchSuccess];
+    const ALL: [Sound; 7] = [Sound::Move, Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch, Sound::Notification, Sound::Restore];
 
     fn name(self) -> &'static str {
         match self {
@@ -41,7 +39,6 @@ impl Sound {
             Sound::Launch => "launch",
             Sound::Notification => "notification",
             Sound::Restore => "restore",
-            Sound::LaunchSuccess => "launch_success",
         }
     }
 
@@ -50,7 +47,7 @@ impl Sound {
     fn tones(self, style: SoundStyle) -> (&'static [(f32, f32)], f32) {
         match (style, self) {
             (SoundStyle::Classic, Sound::Move) => (&[(1150., 26.)], 0.22),
-            (SoundStyle::Classic, Sound::Confirm | Sound::Launch | Sound::Notification | Sound::Restore | Sound::LaunchSuccess) => {
+            (SoundStyle::Classic, Sound::Confirm | Sound::Launch | Sound::Notification | Sound::Restore) => {
                 (&[(660., 45.), (990., 80.)], 0.3)
             }
             (SoundStyle::Classic, Sound::Back) => (&[(720., 45.), (480., 80.)], 0.3),
@@ -58,7 +55,7 @@ impl Sound {
             // Low and round: a tick that dips a little, then rising (G4 to D5)
             // and falling (A4 to E4) fifths for yes and back.
             (SoundStyle::Soft, Sound::Move) => (&[(520., 60.)], 0.26),
-            (SoundStyle::Soft, Sound::Confirm | Sound::Launch | Sound::Notification | Sound::Restore | Sound::LaunchSuccess) => {
+            (SoundStyle::Soft, Sound::Confirm | Sound::Launch | Sound::Notification | Sound::Restore) => {
                 (&[(392., 50.), (587., 110.)], 0.34)
             }
             (SoundStyle::Soft, Sound::Back) => (&[(440., 50.), (330., 100.)], 0.34),
@@ -167,11 +164,10 @@ Use .wav, .ogg, .mp3, or .flac files with these names:\n\
   launch      Game launch begins (falls back to confirm.wav)\n\
   notification Toast/banner appears (falls back to confirm.wav)\n\
   restore     Heronite window is restored (falls back to confirm.wav)\n\
-  launch_success  Game process successfully starts (optional; no fallback)\n\
 \n\
 Each sound must be no longer than 5 seconds. A style appears when it has at\n\
 least one valid sound file. Missing navigation sounds use built-in sounds;\n\
-notification and restore use confirm; launch_success is silent if absent.\n\
+launch, notification and restore use confirm if their file is absent.\n\
 Select Audio Output Device in Console Settings. System Default follows the\n\
 current system output; unavailable selected devices fall back to that default.\n";
 
@@ -198,7 +194,9 @@ fn prepare_sound_folder(root: &Path) {
             }
         }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => match std::fs::read_to_string(&readme) {
-            Ok(contents) if contents == LEGACY_SOUND_README => {
+            Ok(contents)
+                if contents == LEGACY_SOUND_README || contents.contains("Game process successfully starts (optional; no fallback)") =>
+            {
                 if let Err(e) = std::fs::write(&readme, SOUND_README) {
                     log::warn!("console sounds: cannot update {}: {e}", readme.display());
                 }
@@ -432,7 +430,7 @@ fn load_style(root: Option<&Path>, style: &str) -> HashMap<Sound, AudioSample> {
         });
         if let Some(sample) = sample {
             sounds.insert(sound, sample);
-        } else if !matches!(sound, Sound::Launch | Sound::Notification | Sound::Restore | Sound::LaunchSuccess) {
+        } else if !matches!(sound, Sound::Launch | Sound::Notification | Sound::Restore) {
             sounds.insert(sound, built_in(fallback_style, sound));
         }
     }
@@ -598,7 +596,7 @@ fn pitch_for(sound: Sound, dynamic_pitch: bool, preview: bool, last_move: &mut O
 /// keeps only the active package's decoded sounds resident.
 struct Player {
     tx: Sender<Request>,
-    last: [Option<Instant>; 8],
+    last: [Option<Instant>; 7],
     last_preview: Option<Instant>,
     last_move: Option<Instant>,
     move_step: usize,
@@ -614,7 +612,7 @@ impl Player {
         if let Err(e) = std::thread::Builder::new().name("console-sounds".into()).spawn(move || work(rx, initial_style, initial_device)) {
             log::warn!("console sounds: could not start audio worker: {e}");
         }
-        Self { tx, last: [None; 8], last_preview: None, last_move: None, move_step: 0 }
+        Self { tx, last: [None; 7], last_preview: None, last_move: None, move_step: 0 }
     }
 
     fn send(&mut self, sound: Sound, settings: Settings, preview: bool, replaces_press: bool) {
@@ -654,11 +652,6 @@ pub fn play(sound: Sound, settings: Settings) {
 /// Plays the game-launch sound and replaces the immediately preceding confirm press.
 pub fn launch(settings: Settings) {
     send(Sound::Launch, settings, false, true);
-}
-
-/// Plays the optional sound for a game process that was successfully spawned.
-pub fn launch_success(settings: Settings) {
-    send(Sound::LaunchSuccess, settings, false, false);
 }
 
 /// Plays the sound for a toast/banner.
@@ -858,17 +851,20 @@ mod tests {
     }
 
     #[test]
-    fn notification_and_restore_fall_back_to_confirm_but_success_is_optional() {
+    fn notification_file_is_loaded_and_notification_and_restore_fall_back_to_confirm() {
         let root = tempfile::tempdir().unwrap();
         let dir = root.path().join("custom");
         std::fs::create_dir_all(&dir).unwrap();
         let confirm = wav(&[(880., 100.)], 0.8, &classic());
+        let notification = wav(&[(440., 120.)], 0.6, &classic());
         std::fs::write(dir.join("confirm.wav"), &confirm).unwrap();
+        std::fs::write(dir.join("notification.wav"), &notification).unwrap();
         let sounds = load_style(Some(root.path()), "custom");
-        for sound in [Sound::Launch, Sound::Notification, Sound::Restore] {
+        let notification_sample = AudioSample::from_audio(notification).unwrap();
+        assert_eq!(sample_for(&sounds, Sound::Notification).unwrap().samples, notification_sample.samples);
+        for sound in [Sound::Launch, Sound::Restore] {
             assert_eq!(sample_for(&sounds, sound).unwrap().samples, sample_for(&sounds, Sound::Confirm).unwrap().samples);
         }
-        assert!(sample_for(&sounds, Sound::LaunchSuccess).is_none());
     }
 
     #[test]
@@ -890,16 +886,16 @@ mod tests {
         prepare_sound_folder(&root);
         let readme = root.join("README.txt");
         let text = std::fs::read_to_string(&readme).unwrap();
-        for file in ["move", "confirm", "back", "tab", "launch", "notification", "restore", "launch_success"] {
+        for file in ["move", "confirm", "back", "tab", "launch", "notification", "restore"] {
             assert!(text.contains(file));
         }
         for extension in [".wav", ".ogg", ".mp3", ".flac"] {
             assert!(text.contains(extension));
         }
-        assert!(text.contains("no fallback"));
+        assert!(text.contains("use confirm if their file is absent"));
         std::fs::write(&readme, LEGACY_SOUND_README).unwrap();
         prepare_sound_folder(&root);
-        assert!(std::fs::read_to_string(&readme).unwrap().contains("launch_success"));
+        assert!(std::fs::read_to_string(&readme).unwrap().contains("notification"));
         assert!(text.contains("5 seconds"));
         std::fs::write(&readme, "user notes").unwrap();
         prepare_sound_folder(&root);
@@ -927,7 +923,7 @@ mod tests {
         assert!(second > 1.);
 
         assert_eq!(pitch_for(Sound::Move, false, false, &mut last, &mut step, start + Duration::from_millis(120)), 1.);
-        for sound in [Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch, Sound::Notification, Sound::Restore, Sound::LaunchSuccess] {
+        for sound in [Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch, Sound::Notification, Sound::Restore] {
             assert_eq!(pitch_for(sound, true, false, &mut last, &mut step, start + Duration::from_millis(150)), 1.);
         }
         assert_eq!(pitch_for(Sound::Move, true, true, &mut last, &mut step, start + Duration::from_millis(180)), 1.);
@@ -958,6 +954,5 @@ mod tests {
         assert_eq!(for_pad(Pad::RB), Some(Sound::Tab));
         assert_eq!(for_pad(Pad::ScrollDown), None);
         assert_eq!(Sound::Launch.name(), "launch");
-        assert_eq!(Sound::LaunchSuccess.name(), "launch_success");
     }
 }

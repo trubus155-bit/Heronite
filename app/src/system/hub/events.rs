@@ -56,13 +56,6 @@ pub(super) fn on_event(cx: &mut App, ev: LaunchEvent) {
         }
         (started, ended, s.settings())
     };
-    if started {
-        let paths = AppPaths::for_data(&hub.0.borrow().data_paths);
-        let prefs = crate::console::themes::prefs(&paths);
-        if prefs.theme.controls.sounds {
-            crate::console::sound::launch_success(crate::console::sound::Settings::of(&prefs.theme.controls, prefs.audio_output_device));
-        }
-    }
     // Before the post-game work, which takes the session (and its title) away.
     if !has_window(cx) {
         notify_without_window(cx, &ev);
