@@ -1,10 +1,10 @@
 {
-  "A program, or a .bat, .cmd or .ps1 script": "Suatu program, atau sebuah .bat, .cmd atau skrip .ps1",
-  "Adds its variables and arguments to this game": "Tambahkan variabel dan argumen ke permainan ini",
-  "Adds its variables and arguments to this game, without duplicates.": "Tambahkan variabel dan argumen ke permainan ini, tanpa duplikat.",
+  "A program, or a .bat, .cmd or .ps1 script": "Program, atau skrip .bat, .cmd, maupun .ps1",
+  "Adds its variables and arguments to this game": "Menambahkan variabel dan argumennya ke permainan ini",
+  "Adds its variables and arguments to this game, without duplicates.": "Menambahkan variabel dan argumennya ke permainan ini tanpa duplikasi.",
   "Nothing to save: add environment variables or game arguments first.": "Tidak ada yang perlu disimpan: tambahkan variabel lingkungan atau argumen permainan terlebih dahulu.",
-  "Saves this game's variables and arguments under a name, to reuse in other games.": "Simpan variabel dan argumen game ini dengan nama, untuk digunakan kembali dalam permainan lain.",
-  "Steam starts the game itself, as from its library. Heronite runs these when you play from Heronite.": "Steam memulai permainan sendiri, seperti dari perpustakaannya. Heronite menjalankan ini ketika Anda bermain dari Heronite.",
-  "This game's variables and arguments, for other games": "Permainan ini variabel dan argumen, untuk permainan lain",
-  "Trainers and tools started with the game and closed with it.": "Pelatih dan alat-alat dimulai dengan permainan dan ditutup dengan itu."
+  "Saves this game's variables and arguments under a name, to reuse in other games.": "Menyimpan variabel dan argumen permainan ini dengan nama tertentu agar dapat digunakan kembali pada permainan lain.",
+  "Steam starts the game itself, as from its library. Heronite runs these when you play from Heronite.": "Steam menjalankan permainan itu sendiri layaknya dari perpustakaannya. Heronite menjalankan program tambahan ini saat Anda memainkannya melalui Heronite.",
+  "This game's variables and arguments, for other games": "Variabel dan argumen permainan ini, untuk digunakan pada permainan lain",
+  "Trainers and tools started with the game and closed with it.": "Trainer dan alat bantu yang dijalankan bersamaan dengan permainan serta ditutup saat permainan berakhir."
 }

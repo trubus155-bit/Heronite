@@ -1,9 +1,9 @@
 {
-  "1. Download the Windows version (the file ending in -win64.zip).": "1. Unduh versi Windows (berkas berakhir dalam -win64.zip).",
-  "2. Extract ludusavi.exe into %LOCALAPPDATA%\\Programs\\Ludusavi, or install it with winget install mtkennerly.ludusavi or scoop install ludusavi.": "Keluarkan ludusavi.exe ke %LOCALAPDATA%\\ Programs\\ Ludusavi, atau instal dengan winget install mtkennerly.ludusavi atau scoop install ludusavi.",
-  "Installed somewhere else? Set the program in Backup location & format.": "Terpasang di tempat lain? Atur program dalam & format lokasi Backup.",
-  "Linux paths, Wine registry files or a drive this PC does not have. They cannot be restored here.": "Jalur Linux, Wine berkas registry atau drive PC ini tidak memiliki. Mereka tidak dapat dipulihkan di sini.",
-  "No place on this PC": "Tidak ada tempat di PC ini",
-  "Nothing in this backup has a place on this PC.": "Tidak ada dalam cadangan ini memiliki tempat di PC ini.",
-  "The Saves tab of each game lists the backups in these folders: the one new backups go to, and only the folders you add. It puts a backup back where the game keeps its saves on this PC, even one made by another Windows user, in another Steam library or on Linux.": "Tab simpan dari setiap permainan daftar backup dalam folder ini: satu backup baru pergi ke, dan hanya folder yang Anda tambahkan. Ini menempatkan cadangan kembali di mana permainan terus menyimpan nya pada PC ini, bahkan satu dibuat oleh pengguna Windows lain, dalam perpustakaan Steam lain atau di Linux."
+  "1. Download the Windows version (the file ending in -win64.zip).": "1. Unduh versi Windows (berkas yang berakhiran -win64.zip).",
+  "2. Extract ludusavi.exe into %LOCALAPPDATA%\\Programs\\Ludusavi, or install it with winget install mtkennerly.ludusavi or scoop install ludusavi.": "2. Ekstrak ludusavi.exe ke %LOCALAPPDATA%\\Programs\\Ludusavi, atau instal menggunakan winget install mtkennerly.ludusavi maupun scoop install ludusavi.",
+  "Installed somewhere else? Set the program in Backup location & format.": "Terinstal di lokasi lain? Tentukan lokasinya di bagian Lokasi & format cadangan.",
+  "Linux paths, Wine registry files or a drive this PC does not have. They cannot be restored here.": "Jalur Linux, berkas registri Wine, atau drive yang tidak ada di PC ini. Berkas tersebut tidak dapat dipulihkan di sini.",
+  "No place on this PC": "Tidak tersedia di PC ini",
+  "Nothing in this backup has a place on this PC.": "Tidak ada data di dalam cadangan ini yang sesuai dengan lokasi penyimpanan di PC ini.",
+  "The Saves tab of each game lists the backups in these folders: the one new backups go to, and only the folders you add. It puts a backup back where the game keeps its saves on this PC, even one made by another Windows user, in another Steam library or on Linux.": "Tab Simpanan pada setiap permainan menampilkan daftar cadangan di folder-folder ini: folder tujuan cadangan baru serta folder yang Anda tambahkan. Fitur ini memulihkan cadangan ke lokasi penyimpanan data permainan di PC ini, termasuk cadangan yang dibuat oleh pengguna Windows lain, di perpustakaan Steam lain, maupun di Linux."
 }

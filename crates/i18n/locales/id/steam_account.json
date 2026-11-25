@@ -1,7 +1,7 @@
 {
-  "Another program on this PC uses port {port}, which Steam needs to let Heronite read your library. Close the program that uses it (a torrent client or a development server, for example) or change its port, then restart Steam.": "Program lain pada PC ini menggunakan port {port}, yang Steam perlu untuk membiarkan Heronite membaca pustaka Anda. Tutup program yang menggunakannya (suatu server pengembangan atau server torrent) atau ubah port-nya, lalu jalankan ulang Steam.",
-  "Another program on this PC uses the port Steam needs to let Heronite in. The Steam page says which.": "Program lain di PC ini menggunakan port Steam untuk membiarkan Heronite masuk. Halaman Steam mengatakan yang mana.",
-  "Another program on this PC, {program}, uses port {port}, which Steam needs to let Heronite read your library. Close {program} or change its port, then restart Steam.": "Program lain pada PC ini, {program}, menggunakan port {port}, yang Steam perlu untuk membiarkan Heronite membaca perpustakaan Anda. Tutup {program} atau ubah port-nya, lalu jalankan ulang Steam.",
+  "Another program on this PC uses port {port}, which Steam needs to let Heronite read your library. Close the program that uses it (a torrent client or a development server, for example) or change its port, then restart Steam.": "Program lain di PC ini menggunakan port {port}, yang dibutuhkan Steam agar Heronite dapat membaca perpustakaan Anda. Tutup program yang menggunakannya (misalnya klien torrent atau server pengembangan) atau ubah port-nya, lalu mulai ulang Steam.",
+  "Another program on this PC uses the port Steam needs to let Heronite in. The Steam page says which.": "Program lain di PC ini menggunakan port yang dibutuhkan Steam agar Heronite dapat terhubung. Halaman Steam menampilkan program mana yang menggunakannya.",
+  "Another program on this PC, {program}, uses port {port}, which Steam needs to let Heronite read your library. Close {program} or change its port, then restart Steam.": "Program lain di PC ini, {program}, menggunakan port {port}, yang dibutuhkan Steam agar Heronite dapat membaca perpustakaan Anda. Tutup {program} atau ubah port-nya, lalu mulai ulang Steam.",
   "From your Steam account": "Dari akun Steam Anda",
-  "Port in use": "Port sedang dipakai"
+  "Port in use": "Port sedang digunakan"
 }

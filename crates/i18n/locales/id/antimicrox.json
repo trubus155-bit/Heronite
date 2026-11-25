@@ -1,11 +1,11 @@
 {
   "AntiMicroX profiles": "Profil AntiMicroX",
-  "Player {number}": "Pemutar {number}",
-  "Add player": "Tambah pemutar",
-  "Add a player…": "Tambah pemutar...",
-  "Remove a player…": "Buang pemutar...",
-  "Remove a player": "Hapus pemutar",
-  "Choose the AntiMicroX profile of {player}": "Pilih profil AntiMicroX dari {player}",
-  "AntiMicroX profile of {player}": "Profil AntiMicroX dari {player}",
-  "A profile (.amgp) for each controller, loaded while the game runs: player 1's on the first controller, player 2's on the second. Needs AntiMicroX installed.": "Profil (.amgp) untuk setiap pengendali, dimuat ketika permainan berjalan: pemain 1 pada pengontrol pertama, pemain 2 pada detik. Butuh antiMicroX terpasang."
+  "Player {number}": "Pemain {number}",
+  "Add player": "Tambah pemain",
+  "Add a player…": "Tambah pemain…",
+  "Remove a player…": "Hapus pemain…",
+  "Remove a player": "Hapus pemain",
+  "Choose the AntiMicroX profile of {player}": "Pilih profil AntiMicroX untuk {player}",
+  "AntiMicroX profile of {player}": "Profil AntiMicroX untuk {player}",
+  "A profile (.amgp) for each controller, loaded while the game runs: player 1's on the first controller, player 2's on the second. Needs AntiMicroX installed.": "Profil (.amgp) untuk setiap kontroler yang dimuat saat permainan berjalan: profil pemain 1 untuk kontroler pertama, pemain 2 untuk kontroler kedua. Memerlukan AntiMicroX terinstal."
 }

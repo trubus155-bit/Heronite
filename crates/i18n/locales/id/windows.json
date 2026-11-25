@@ -1,9 +1,9 @@
 {
-  "A Windows program or a browser game.": "Sebuah program Windows atau permainan peramban.",
-  "Linux programs do not run on Windows": "Linux program tidak berjalan di Windows",
+  "A Windows program or a browser game.": "Program Windows atau permainan peramban.",
+  "Linux programs do not run on Windows": "Program Linux tidak dapat berjalan di Windows",
   "Maximize": "Maksimalkan",
   "Minimize": "Minimalkan",
-  "What Steam adds to the game's command, however the game starts (Properties → General in Steam), like -novid or -dx11.": "Apa Steam menambah perintah permainan, namun permainan dimulai (Properties General dalam Steam), seperti -novid atau -dx11.",
+  "What Steam adds to the game's command, however the game starts (Properties → General in Steam), like -novid or -dx11.": "Parameter yang ditambahkan Steam ke perintah peluncuran permainan, bagaimana pun permainan dimulai (Properti → Umum di Steam), seperti -novid atau -dx11.",
   "Windows or browser": "Windows atau peramban",
   "Windows, web": "Windows, web"
 }

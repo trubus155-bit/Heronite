@@ -1,17 +1,17 @@
 {
   "All sources": "Semua sumber",
-  "Back to what the sources gave": "Kembali ke apa yang diberikan sumber",
-  "COVERS": "COVERS",
-  "Change pictures…": "Ubah foto...",
-  "Covers and backgrounds, from the web or a file": "Penyelam dan latar belakang, dari web atau berkas",
+  "Back to what the sources gave": "Kembali ke gambar bawaan dari sumber",
+  "COVERS": "SAMPUL",
+  "Change pictures…": "Ubah gambar…",
+  "Covers and backgrounds, from the web or a file": "Sampul dan latar belakang, dari web atau berkas",
   "Looking for pictures on the web.": "Mencari gambar di web.",
-  "No pictures found": "Tidak ada gambar yang ditemukan",
+  "No pictures found": "Gambar tidak ditemukan",
   "Options": "Opsi",
-  "Press Y to type another search.": "Tekan Y untuk mengetik pencarian lain.",
+  "Press Y to type another search.": "Tekan Y untuk mengetik kata pencarian lain.",
   "Search pictures": "Cari gambar",
   "Search: {query}": "Cari: {query}",
   "Show pictures from": "Tampilkan gambar dari",
   "Use picture": "Gunakan gambar",
   "{n} picture": "{n} gambar",
-  "{n} pictures": "Foto {n}"
+  "{n} pictures": "{n} gambar"
 }

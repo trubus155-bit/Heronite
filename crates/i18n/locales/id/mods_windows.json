@@ -1,13 +1,13 @@
 {
-  "An optional Windows feature. Not used yet.": "Fitur Windows opsional. Belum digunakan.",
-  "Could not put {file} into the game folder: {error}": "Tidak dapat memasukkan {file} ke dalam folder permainan: {error}",
-  "Could not set Heronite for the {scheme} links: {error}": "Tidak dapat menset link Heronite untuk {scheme}: {error}",
-  "Hard links and copies": "Hard link dan salinan",
-  "Mods apply only when the game is started from Heronite. Their files are put into the game's folder while it runs and taken out when it ends; what the game writes there goes to the mods' overwrite folder.": "Moda hanya berlaku ketika permainan dimulai dari Heronite. Berkas-berkas mereka dimasukkan ke dalam folder permainan saat dijalankan dan dihapus ketika berakhir; apa yang ditulis oleh permainan akan ada pada folder 'menimpa.",
-  "Need Developer Mode or an administrator. Not used.": "Perlu Mode Pengembang atau administrator. Tidak digunakan.",
-  "Projected File System": "Sistem Berkas Diproyeksikan",
-  "Symbolic links": "Taut simbolik",
-  "The game folder {path} is not there (an unplugged drive?)": "Folder game {path} tidak ada (sebuah kandar yang belum ditancapkan?)",
-  "The mods of an earlier run could not be taken out of the game folder: {error}": "Mode dari run sebelumnya tidak dapat dikeluarkan dari folder permainan: {error}",
-  "While the game runs, the mods' files are in its folder: linked when they are on the same drive as the mods, copied otherwise. The game's own files a mod replaces are set aside and put back when it ends, or at the next start after a crash.": "Ketika permainan berjalan, berkas mod ada di dalam folder: dihubungkan ketika mereka berada pada kandar yang sama dengan mod, disalin sebaliknya. Berkas-berkas sendiri mod replaces disisihkan dan meletakkan kembali ketika berakhir, atau di awal berikutnya setelah kecelakaan."
+  "An optional Windows feature. Not used yet.": "Fitur opsional Windows. Belum digunakan.",
+  "Could not put {file} into the game folder: {error}": "Gagal memasukkan {file} ke dalam folder permainan: {error}",
+  "Could not set Heronite for the {scheme} links: {error}": "Gagal mengatur Heronite untuk tautan {scheme}: {error}",
+  "Hard links and copies": "Tautan keras (hard link) dan salinan",
+  "Mods apply only when the game is started from Heronite. Their files are put into the game's folder while it runs and taken out when it ends; what the game writes there goes to the mods' overwrite folder.": "Mod hanya diterapkan saat permainan dijalankan melalui Heronite. Berkas mod akan dimasukkan ke folder permainan selama permainan berjalan dan dikeluarkan kembali setelah permainan berakhir; data yang ditulis oleh permainan akan disimpan di folder Overwrite mod.",
+  "Need Developer Mode or an administrator. Not used.": "Memerlukan Mode Pengembang atau hak administrator. Belum digunakan.",
+  "Projected File System": "Projected File System (Sistem Berkas Terproyeksi)",
+  "Symbolic links": "Tautan simbolik (symbolic link)",
+  "The game folder {path} is not there (an unplugged drive?)": "Folder permainan {path} tidak ditemukan (apakah drive belum terhubung?)",
+  "The mods of an earlier run could not be taken out of the game folder: {error}": "Mod dari sesi sebelumnya gagal dikeluarkan dari folder permainan: {error}",
+  "While the game runs, the mods' files are in its folder: linked when they are on the same drive as the mods, copied otherwise. The game's own files a mod replaces are set aside and put back when it ends, or at the next start after a crash.": "Selama permainan berjalan, berkas mod ditempatkan di dalam foldernya: ditautkan jika berada di drive yang sama dengan folder mod, atau disalin jika berbeda drive. Berkas asli permainan yang digantikan oleh mod akan disimpan sementara dan dikembalikan setelah permainan berakhir, atau saat dijalankan berikutnya setelah terjadi crash."
 }

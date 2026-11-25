@@ -1,8 +1,8 @@
 {
-  "Flatpak emulators do not run on Windows": "Flatpak emulator tidak berjalan di Windows",
-  "Looking in PATH and the usual folders…": "Mencari dalam PATH dan folder biasa...",
-  "Looks in PATH and the usual folders": "Tampak dalam PATH dan folder biasa",
-  "No emulators were found on PATH or in the usual folders. Add one manually.": "Tak ada emulator yang ditemukan pada PATH atau dalam folder biasa. Tambahkan satu secara manual.",
-  "Programs kept in one folder": "Program disimpan dalam satu folder",
-  "RetroArch core (.dll)": "Inti RetroArch (.dll)"
+  "Flatpak emulators do not run on Windows": "Emulator Flatpak tidak berjalan di Windows",
+  "Looking in PATH and the usual folders…": "Mencari di PATH dan folder umum…",
+  "Looks in PATH and the usual folders": "Memindai PATH dan folder umum",
+  "No emulators were found on PATH or in the usual folders. Add one manually.": "Tidak ada emulator yang ditemukan di PATH atau di folder umum. Tambahkan secara manual.",
+  "Programs kept in one folder": "Program yang disimpan dalam satu folder",
+  "RetroArch core (.dll)": "Core RetroArch (.dll)"
 }

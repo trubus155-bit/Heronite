@@ -1,5 +1,5 @@
 {
   "Leave it empty to use the one in the data folder ({path}).": "Biarkan kosong untuk menggunakan yang ada di folder data ({path}).",
-  "Windows programs do not run on {system} without Wine": "Windows program tidak berjalan di {system} tanpa Wine",
-  "{platform} programs do not run on {system}": "{platform} program tidak berjalan di {system}"
+  "Windows programs do not run on {system} without Wine": "Program Windows tidak dapat berjalan di {system} tanpa Wine",
+  "{platform} programs do not run on {system}": "Program {platform} tidak dapat berjalan di {system}"
 }

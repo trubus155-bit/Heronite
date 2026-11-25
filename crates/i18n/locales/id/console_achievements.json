@@ -1,8 +1,8 @@
 {
-  "Default order": "Urutan baku",
-  "Not unlocked": "Tidak terkunci",
-  "Unlocked": "Tidak dikunci",
-  "{percent} of players": "{percent} dari pemain",
-  "{unlocked} of {total} unlocked": "{unlocked} {total} dibuka",
-  "{unlocked} of {total} unlocked · last on {date}": "{unlocked} {total} terkunci · terakhir pada {date}"
+  "Default order": "Urutan default",
+  "Not unlocked": "Belum terbuka",
+  "Unlocked": "Terbuka",
+  "{percent} of players": "{percent} pemain",
+  "{unlocked} of {total} unlocked": "{unlocked} dari {total} terbuka",
+  "{unlocked} of {total} unlocked · last on {date}": "{unlocked} dari {total} terbuka · terakhir pada {date}"
 }

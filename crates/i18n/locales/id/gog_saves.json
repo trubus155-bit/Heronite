@@ -1,9 +1,9 @@
 {
-  "Could not load the save folders: {error}": "Tidak dapat memuat folder penyimpanan: {error}",
-  "Default folder": "Folder bawaan",
-  "GOG lists these folders. They are kept in the game's settings (gogSaves).": "GOG daftar folder ini. Mereka disimpan dalam pengaturan permainan (gogQSaves).",
-  "GOG lists these folders. They are kept in the game's settings (gogSaves); refresh them after changing the Wine prefix.": "GOG daftar folder ini. Mereka disimpan dalam pengaturan permainan (gogQSaves); segarkan mereka setelah mengubah prefiks Wine.",
-  "Loading the save folders…": "Memuat folder simpan...",
-  "Refresh locations": "Lokasi refresh",
-  "Save folders": "Simpan folder"
+  "Could not load the save folders: {error}": "Gagal memuat folder simpanan: {error}",
+  "Default folder": "Folder default",
+  "GOG lists these folders. They are kept in the game's settings (gogSaves).": "GOG mencantumkan folder-folder ini. Pengaturan tersebut disimpan di konfigurasi permainan (gogSaves).",
+  "GOG lists these folders. They are kept in the game's settings (gogSaves); refresh them after changing the Wine prefix.": "GOG mencantumkan folder-folder ini. Pengaturan tersebut disimpan di konfigurasi permainan (gogSaves); segarkan kembali setelah mengubah prefix Wine.",
+  "Loading the save folders…": "Memuat folder simpanan…",
+  "Refresh locations": "Segarkan lokasi",
+  "Save folders": "Folder simpanan"
 }

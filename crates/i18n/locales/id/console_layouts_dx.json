@@ -1,10 +1,10 @@
 {
-  "About {hours} h to beat": "Tentang {hours} untuk mengalahkan",
-  "Backlog pick": "Pilih backlog",
-  "Last played {when}": "Terakhir kali dimainkan {when}",
-  "My games": "Permainanku",
+  "About {hours} h to beat": "Sekitar {hours} jam untuk tamat",
+  "Backlog pick": "Pilihan daftar tunggu",
+  "Last played {when}": "Terakhir dimainkan {when}",
+  "My games": "Permainan saya",
   "Not played yet": "Belum dimainkan",
-  "Nothing downloading": "Tidak ada download",
+  "Nothing downloading": "Tidak ada unduhan",
   "Nothing played this week": "Tidak ada yang dimainkan minggu ini",
   "This week": "Minggu ini"
 }

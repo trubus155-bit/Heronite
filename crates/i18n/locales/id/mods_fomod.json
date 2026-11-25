@@ -1,11 +1,11 @@
 {
   "ModuleConfig.xml is not valid: {error}": "ModuleConfig.xml tidak valid: {error}",
-  "The option {flag} is not set to {value}": "Pilihan {flag} tidak diset ke {value}",
-  "This mod has no FOMOD installer": "Mod ini tidak memiliki instalasi FOMOD",
-  "This mod uses a scripted installer (script.cs), which Heronite cannot run": "Mod ini menggunakan pemasang skrip (script.cs), yang Heronite tidak dapat berjalan",
-  "could not read ModuleConfig.xml: {error}": "tidak dapat membaca ModuleConfig.xml: {error}",
-  "{file} is installed but not enabled": "{file} terpasang tetapi tidak diaktifkan",
-  "{file} is not installed": "{file} belum terpasang",
-  "{file} must be installed and not enabled": "{file} harus dipasang dan tidak diaktifkan",
-  "{file} must not be installed": "{file} tidak boleh dipasang"
+  "The option {flag} is not set to {value}": "Opsi {flag} tidak diatur ke {value}",
+  "This mod has no FOMOD installer": "Mod ini tidak memiliki penginstal FOMOD",
+  "This mod uses a scripted installer (script.cs), which Heronite cannot run": "Mod ini menggunakan penginstal berbasis skrip (script.cs) yang tidak dapat dijalankan oleh Heronite",
+  "could not read ModuleConfig.xml: {error}": "gagal membaca ModuleConfig.xml: {error}",
+  "{file} is installed but not enabled": "{file} terinstal tetapi tidak diaktifkan",
+  "{file} is not installed": "{file} belum terinstal",
+  "{file} must be installed and not enabled": "{file} harus diinstal dan tidak diaktifkan",
+  "{file} must not be installed": "{file} tidak boleh diinstal"
 }

@@ -1,13 +1,13 @@
 {
   "Every field follows the list order": "Setiap bidang mengikuti urutan daftar",
   "Groups": "Grup",
-  "No settings match.": "Tak ada pengaturan yang cocok.",
-  "Sections and settings, by their names and descriptions.": "Bagian dan pengaturan, dengan nama dan deskripsi mereka.",
-  "Turn on “{parent}” first": "Nyalakan “{parent}” dulu",
-  "{n} field set by you": "Lapangan {n} diatur oleh Anda",
-  "{n} fields set by you": "Ladang {n} diatur oleh Anda",
-  "{n} item": "Item {n}",
+  "No settings match.": "Tidak ada pengaturan yang cocok.",
+  "Sections and settings, by their names and descriptions.": "Bagian dan pengaturan, berdasarkan nama dan deskripsinya.",
+  "Turn on “{parent}” first": "Aktifkan “{parent}” terlebih dahulu",
+  "{n} field set by you": "{n} bidang diatur oleh Anda",
+  "{n} fields set by you": "{n} bidang diatur oleh Anda",
+  "{n} item": "{n} item",
   "{n} items": "{n} item",
-  "{n} more setting": "{n} lebih banyak pengaturan",
-  "{n} more settings": "{n} lebih banyak pengaturan"
+  "{n} more setting": "{n} pengaturan lainnya",
+  "{n} more settings": "{n} pengaturan lainnya"
 }

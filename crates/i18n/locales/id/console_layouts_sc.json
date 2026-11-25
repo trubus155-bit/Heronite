@@ -1,9 +1,9 @@
 {
-  "Last played: {when}": "Terakhir diputar: {when}",
+  "Last played: {when}": "Terakhir dimainkan: {when}",
   "Main story": "Cerita utama",
-  "Main story · you are at {percent}%": "Cerita utama · Anda berada di {percent}%",
-  "No data": "Tak ada data",
+  "Main story · you are at {percent}%": "Cerita utama · Progres Anda {percent}%",
+  "No data": "Tidak ada data",
   "No notes yet": "Belum ada catatan",
-  "Press A to see them all.": "Tekan A untuk melihat mereka semua.",
-  "View all": "Tilik semua"
+  "Press A to see them all.": "Tekan A untuk melihat semuanya.",
+  "View all": "Lihat semua"
 }

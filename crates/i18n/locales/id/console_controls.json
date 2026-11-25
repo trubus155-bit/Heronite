@@ -1,15 +1,15 @@
 {
-  "Ask shows a notice in the corner of the screen, even with Heronite in the tray.": "Tanyakan sebuah pemberitahuan di sudut layar, bahkan dengan Heronite dalam nampan.",
-  "Button to enter console mode": "Tombol untuk memasuki mode konsol",
-  "Controller connected": "Pengontrol tersambung",
-  "Heronite comes to the front": "Heronite datang ke depan",
-  "Hold Back + Start": "Tahan Mundur + Mulai",
-  "Hold Guide": "Tahan Panduan",
+  "Ask shows a notice in the corner of the screen, even with Heronite in the tray.": "Opsi Tanya akan menampilkan notifikasi di sudut layar, bahkan saat Heronite berada di baki sistem.",
+  "Button to enter console mode": "Tombol untuk masuk ke mode konsol",
+  "Controller connected": "Kontroler terhubung",
+  "Heronite comes to the front": "Heronite tampil di bagian depan",
+  "Hold Back + Start": "Tahan Back + Start",
+  "Hold Guide": "Tahan Guide",
   "Hold LB + RB": "Tahan LB + RB",
-  "Hold it for a second, from any app. Not while a game runs.": "Tunggu sebentar, dari aplikasi apapun. Tidak saat permainan berjalan.",
-  "Hold to enter console mode": "Tahan untuk memasukkan mode konsol",
-  "Hold {button} to enter console mode": "Tahan {button} untuk memasuki mode konsol",
-  "Keep holding…": "Terus pegang...",
-  "Opening console mode…": "Mode konsol terbuka...",
-  "Release to cancel": "Rilis untuk membatalkan"
+  "Hold it for a second, from any app. Not while a game runs.": "Tahan selama satu detik dari aplikasi mana pun. Tidak berfungsi saat permainan berjalan.",
+  "Hold to enter console mode": "Tahan untuk masuk ke mode konsol",
+  "Hold {button} to enter console mode": "Tahan {button} untuk masuk ke mode konsol",
+  "Keep holding…": "Terus tahan…",
+  "Opening console mode…": "Membuka mode konsol…",
+  "Release to cancel": "Lepaskan untuk membatalkan"
 }

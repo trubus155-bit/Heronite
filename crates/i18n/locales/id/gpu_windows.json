@@ -1,8 +1,8 @@
 {
-  "High performance": "Penampilan tinggi",
+  "High performance": "Performa tinggi",
   "Power saving": "Hemat daya",
-  "Set for the game's program in Windows while it runs, then put back. Games Steam or another launcher starts keep Windows' choice.": "Set untuk program permainan di Windows sementara berjalan, kemudian menempatkan kembali. Permainan Steam atau peluncur lain mulai menjaga pilihan Windows.",
-  "Windows sees one graphics card here: every choice draws on it.": "Windows melihat satu kartu grafis di sini: setiap gambar pilihan di atasnya.",
-  "Windows' choice": "Pilihan Windows '",
-  "as in Windows' graphics settings": "seperti dalam pengaturan grafis Windows '"
+  "Set for the game's program in Windows while it runs, then put back. Games Steam or another launcher starts keep Windows' choice.": "Diterapkan pada program permainan di Windows selama berjalan, lalu dikembalikan seperti semula. Permainan yang dijalankan melalui Steam atau peluncur lain akan tetap mengikuti pilihan Windows.",
+  "Windows sees one graphics card here: every choice draws on it.": "Windows hanya mendeteksi satu kartu grafis di sini: semua opsi akan menggunakan kartu grafis tersebut.",
+  "Windows' choice": "Pilihan Windows",
+  "as in Windows' graphics settings": "seperti di pengaturan grafis Windows"
 }
