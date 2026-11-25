@@ -69,6 +69,9 @@ fn sound_style_and_dynamic_pitch_are_console_settings() {
     let style = rows.iter().position(|row| row.id == "controls.sound_style").unwrap();
     let pitch = rows.iter().position(|row| row.id == "controls.dynamic_pitch").unwrap();
     assert_eq!(pitch, style + 1);
+    assert!(p.theme.controls.sounds, "navigation sounds are on by default");
+    assert!(change(&mut p, "controls.sounds", Value::Toggle(false)));
+    assert!(!p.theme.controls.sounds);
     assert!(change(&mut p, "controls.sounds", Value::Toggle(true)));
     assert!(change(&mut p, "controls.dynamic_pitch", Value::Toggle(false)));
     assert!(!p.theme.controls.dynamic_pitch);
@@ -249,15 +252,27 @@ fn a_theme_is_edited_when_it_differs_from_its_base() {
 #[test]
 fn picking_a_theme_replaces_the_theme_and_its_base() {
     let mut p = ConsolePrefs::default();
+    p.audio_output_device = "HDMI output".into();
     let list = theme_list(&[]);
     let at = list.iter().position(|(id, _)| id == "cinema").unwrap();
     assert!(change(&mut p, "theme.use", choice(at)));
     assert_eq!(p.based_on, "cinema");
     assert_eq!(p.theme, presets::cinema());
+    assert_eq!(p.audio_output_device, "HDMI output");
     assert!(!is_edited(&p, &[]));
-    assert!(run(&mut p, &Command::new("theme.reset", Arg::Press), &data()));
+
+    let mut custom = presets::pulse();
+    custom.id = "custom".into();
+    let saved_data = Data { saved: vec![custom], ..data() };
+    assert!(run(&mut p, &Command::new("theme.use", Arg::Pick("custom".into())), &saved_data));
+    assert_eq!(p.based_on, "custom");
+    assert_eq!(p.theme.id, "custom");
+    assert_eq!(p.audio_output_device, "HDMI output");
+
+    assert!(run(&mut p, &Command::new("theme.reset", Arg::Press), &saved_data));
     assert_eq!(p.theme, presets::minimal());
     assert_eq!(p.based_on, "minimal");
+    assert_eq!(p.audio_output_device, "HDMI output");
 }
 
 #[test]

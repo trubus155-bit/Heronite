@@ -494,9 +494,9 @@ impl Default for ControlOptions {
     fn default() -> Self {
         Self {
             hints: Hints::Always,
-            sounds: false,
+            sounds: true,
             sound_style: SoundStyle::Soft.as_str().into(),
-            dynamic_pitch: true,
+            dynamic_pitch: false,
             sound_volume: SOUND_VOLUME.1,
         }
     }

@@ -11,6 +11,41 @@ fn default_is_classic_and_round_trips() {
 }
 
 #[test]
+fn navigation_sound_defaults_are_enabled_and_dynamic_pitch_is_optional() {
+    let controls = ControlOptions::default();
+    assert!(controls.sounds);
+    assert!(!controls.dynamic_pitch);
+
+    for theme in presets::all() {
+        assert!(theme.controls.sounds, "{} should enable navigation sounds", theme.id);
+        assert!(!theme.controls.dynamic_pitch, "{} should disable dynamic pitch", theme.id);
+    }
+
+    let fallback = ConsoleTheme::from_json(r#"{"format":1,"controls":{}}"#).unwrap().controls;
+    assert!(fallback.sounds);
+    assert!(!fallback.dynamic_pitch);
+    assert!(ConsolePrefs::default().theme.controls.sounds);
+    assert!(!ConsolePrefs::default().theme.controls.dynamic_pitch);
+}
+
+#[test]
+fn missing_sound_preferences_in_console_json_use_the_new_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = AppPaths { config: dir.path().join("config"), cache: dir.path().join("cache") };
+    std::fs::create_dir_all(paths.console_prefs().parent().unwrap()).unwrap();
+    std::fs::write(paths.console_prefs(), r#"{"theme":{"controls":{}}}"#).unwrap();
+
+    let prefs = ConsolePrefs::load(&paths);
+    assert!(prefs.theme.controls.sounds);
+    assert!(!prefs.theme.controls.dynamic_pitch);
+
+    std::fs::write(paths.console_prefs(), r#"{"theme":{"controls":{"sounds":false,"dynamicPitch":true}}}"#).unwrap();
+    let prefs = ConsolePrefs::load(&paths);
+    assert!(!prefs.theme.controls.sounds);
+    assert!(prefs.theme.controls.dynamic_pitch, "explicit user settings remain intact");
+}
+
+#[test]
 fn audio_output_device_defaults_to_the_system_and_is_persisted_in_prefs() {
     let default = ConsolePrefs::default();
     assert!(default.audio_output_device.is_empty());
@@ -320,12 +355,12 @@ fn the_controller_options_leave_the_theme_and_keep_what_was_chosen() {
 }
 
 #[test]
-fn a_theme_from_before_the_sound_options_gets_the_soft_sound_at_full_volume() {
+fn older_themes_get_updated_sound_defaults_without_overriding_explicit_values() {
     let text = json!({ "format": 1, "controls": { "hints": "off", "sounds": true } }).to_string();
     let c = ConsoleTheme::from_json(&text).unwrap().controls;
     assert!(c.sounds);
     assert_eq!((c.sound_style.as_str(), c.sound_volume), ("soft", 100));
-    assert!(c.dynamic_pitch);
+    assert!(!c.dynamic_pitch);
     let text = json!({ "format": 1, "controls": { "soundStyle": "classic", "soundVolume": 40 } }).to_string();
     let c = ConsoleTheme::from_json(&text).unwrap().controls;
     assert_eq!((c.sound_style.as_str(), c.sound_volume), ("classic", 40));
