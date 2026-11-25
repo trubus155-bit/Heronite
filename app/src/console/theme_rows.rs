@@ -34,7 +34,7 @@ use heronite_data::console_theme::{
 };
 use heronite_data::smart_groups::SmartGroups;
 use heronite_data::{CollectionGame, Library};
-use heronite_i18n::{n_, tr, trc};
+use heronite_i18n::{n_, tr, tr_ctx, trc};
 
 use super::list::{Row, Value};
 use super::look::ACCENTS;

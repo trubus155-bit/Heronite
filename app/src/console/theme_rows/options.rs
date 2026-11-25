@@ -8,7 +8,7 @@ fn sound_style_options() -> Vec<String> {
     sound::available_styles()
         .into_iter()
         .map(|style| match style.id.as_str() {
-            "soft" => tr(sound_style_name(SoundStyle::Soft)).to_string(),
+            "soft" => tr_ctx(sound_style_name(SoundStyle::Soft), "Soft").to_string(),
             "classic" => tr(sound_style_name(SoundStyle::Classic)).to_string(),
             _ => style.label,
         })
