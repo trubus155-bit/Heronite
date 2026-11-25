@@ -15,6 +15,7 @@
 //! run). Ctrl+Break would not do: Python takes it as an exit on the spot.
 
 use std::collections::HashMap;
+use std::io;
 use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
@@ -311,10 +312,15 @@ pub struct ProcessEntry {
 
 /// Every process running now.
 pub fn snapshot() -> Vec<ProcessEntry> {
+    try_snapshot().unwrap_or_default()
+}
+
+/// Every process running now, or the snapshot error.
+pub fn try_snapshot() -> io::Result<Vec<ProcessEntry>> {
     // SAFETY: a process snapshot; INVALID_HANDLE_VALUE is a failure.
     let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snap == INVALID_HANDLE_VALUE {
-        return Vec::new();
+        return Err(io::Error::last_os_error());
     }
     let snap = Owned(snap);
     // SAFETY: zeroed is a valid value of this plain C struct; dwSize is set below.
@@ -333,7 +339,7 @@ pub fn snapshot() -> Vec<ProcessEntry> {
         // SAFETY: as above.
         more = unsafe { Process32NextW(snap.0, &mut entry) } != 0;
     }
-    out
+    Ok(out)
 }
 
 /// The full path of the program `pid` runs.

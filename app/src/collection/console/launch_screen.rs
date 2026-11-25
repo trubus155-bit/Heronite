@@ -95,6 +95,9 @@ struct Facts {
     /// Our window has the focus.
     active: bool,
     game_window: Probe,
+    wait_for_game_window: bool,
+    game_process_alive: Option<bool>,
+    ended: bool,
     /// Since the launch failed.
     failed_for: Option<Duration>,
 }
@@ -111,6 +114,15 @@ enum Verdict {
 fn decide(f: Facts) -> Verdict {
     if let Some(failed) = f.failed_for {
         return if failed >= ERROR_HOLD { Verdict::GiveUp } else { Verdict::Stay };
+    }
+    if f.wait_for_game_window {
+        if f.game_window == Probe::Shown {
+            return Verdict::Ready;
+        }
+        if f.game_process_alive == Some(false) || (f.ended && f.running_for.is_none()) {
+            return Verdict::GiveUp;
+        }
+        return Verdict::Stay;
     }
     if f.shown_for >= CEILING {
         return Verdict::GiveUp;
@@ -187,6 +199,9 @@ pub(super) struct Cover {
     failed: Option<(SharedString, Instant)>,
     probe: Probe,
     probed_at: Option<Instant>,
+    wait_for_game_window: bool,
+    game_process_alive: Option<bool>,
+    ended: bool,
     leaving: Option<Instant>,
     /// The centre piece up (the logo: `true`, the name) and since when: a
     /// logo that comes after the name comes in on its own.
@@ -241,6 +256,9 @@ impl LaunchUi {
             failed: None,
             probe: Probe::Unsupported,
             probed_at: None,
+            wait_for_game_window: false,
+            game_process_alive: None,
+            ended: false,
             leaving: None,
             piece: None,
             frozen,
@@ -254,6 +272,7 @@ enum Next {
     Stop,
     Wait,
     Probe(u32),
+    WaitForGameWindow(u32),
 }
 
 /// Whether console mode's launch screen would cover the window for a launch
@@ -286,6 +305,7 @@ impl CollectionView {
                     Some(c) => {
                         c.pid = Some(*pid);
                         c.running_at.get_or_insert_with(Instant::now);
+                        c.game_process_alive = Some(true);
                         // A made-up session's pid 1: nothing to ask the desktop.
                         if *pid <= 1 {
                             c.probe = Probe::Unsupported;
@@ -304,7 +324,9 @@ impl CollectionView {
                 }
             }
             LaunchEvent::Exited { app_name, .. } => {
-                if self.console.launch.cover.as_ref().is_some_and(|c| c.app_name == *app_name) {
+                if let Some(c) = self.console.launch.cover.as_mut().filter(|c| c.app_name == *app_name && c.wait_for_game_window) {
+                    c.ended = true;
+                } else if self.console.launch.cover.as_ref().is_some_and(|c| c.app_name == *app_name) {
                     self.leave_launch_screen(false, cx);
                 }
             }
@@ -353,6 +375,9 @@ impl CollectionView {
             failed: None,
             probe: Probe::Unknown,
             probed_at: None,
+            wait_for_game_window: cfg!(windows) && look::theme().launch.wait_for_game_window,
+            game_process_alive: None,
+            ended: false,
             leaving: None,
             piece: None,
             frozen,
@@ -431,12 +456,19 @@ impl CollectionView {
             running_for: c.running_at.map(|t| t.elapsed()),
             active,
             game_window: c.probe,
+            wait_for_game_window: c.wait_for_game_window,
+            game_process_alive: c.game_process_alive,
+            ended: c.ended,
             failed_for: c.failed.as_ref().map(|(_, t)| t.elapsed()),
         };
         // Repaints the step as it changes.
         cx.notify();
         match decide(facts) {
             Verdict::Stay => match c.pid {
+                Some(pid) if pid > 1 && c.wait_for_game_window && c.probed_at.is_none_or(|t| t.elapsed() >= PROBE_EVERY) => {
+                    c.probed_at = Some(Instant::now());
+                    Next::WaitForGameWindow(pid)
+                }
                 // pid 1 is a made-up session's: every window would be "its".
                 Some(pid) if pid > 1 && c.probe != Probe::Unsupported && c.probed_at.is_none_or(|t| t.elapsed() >= PROBE_EVERY) => {
                     c.probed_at = Some(Instant::now());
@@ -488,6 +520,22 @@ impl CollectionView {
                         let set = this.update(cx, |this, _| {
                             if let Some(c) = this.console.launch.cover.as_mut().filter(|c| c.pid == Some(pid)) {
                                 c.probe = Probe::of(answer);
+                            }
+                        });
+                        if set.is_err() {
+                            return;
+                        }
+                    }
+                    Next::WaitForGameWindow(pid) => {
+                        let answer = cx.background_spawn(async move { game_process_status(pid) }).await;
+                        let set = this.update(cx, |this, _| {
+                            if let Some((alive, shown)) =
+                                answer.filter(|_| this.console.launch.cover.as_ref().is_some_and(|c| c.pid == Some(pid)))
+                            {
+                                if let Some(c) = this.console.launch.cover.as_mut().filter(|c| c.pid == Some(pid)) {
+                                    c.game_process_alive = Some(alive);
+                                    c.probe = if shown { Probe::Shown } else { Probe::Missing };
+                                }
                             }
                         });
                         if set.is_err() {
@@ -747,13 +795,54 @@ fn status_line(id: u64, step: SharedString, failed: Option<SharedString>) -> Div
     column.child(track).child(div().text_size(u(17.)).text_color(theme::white_a(0.72)).child(step))
 }
 
+#[cfg(windows)]
+fn game_process_status(root: u32) -> Option<(bool, bool)> {
+    let processes = heronite_platform::process::try_snapshot().ok()?;
+    let relations: Vec<_> = processes.iter().map(|process| (process.pid, process.parent)).collect();
+    let pids = process_tree(&relations, root);
+    let alive = !pids.is_empty();
+    let shown = alive && heronite_platform::window_focus::visible_window_of(&pids);
+    Some((alive, shown))
+}
+
+#[cfg(not(windows))]
+fn game_process_status(_root: u32) -> Option<(bool, bool)> {
+    None
+}
+
+/// The live root process and every live child it started, including later generations.
+fn process_tree(processes: &[(u32, u32)], root: u32) -> Vec<u32> {
+    let mut tree = vec![root];
+    let mut i = 0;
+    while i < tree.len() {
+        let parent = tree[i];
+        for &(pid, ppid) in processes {
+            if ppid == parent && pid != 0 && !tree.contains(&pid) {
+                tree.push(pid);
+            }
+        }
+        i += 1;
+    }
+    tree.retain(|pid| processes.iter().any(|(candidate, _)| candidate == pid));
+    tree
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{decide, leave_at, logo_at, Facts, Probe, Verdict, CEILING, ERROR_HOLD, GRACE, WINDOW_WAIT};
+    use super::{decide, leave_at, logo_at, process_tree, Facts, Probe, Verdict, CEILING, ERROR_HOLD, GRACE, WINDOW_WAIT};
     use std::time::Duration;
 
     fn starting() -> Facts {
-        Facts { shown_for: Duration::from_secs(3), running_for: None, active: true, game_window: Probe::Unknown, failed_for: None }
+        Facts {
+            shown_for: Duration::from_secs(3),
+            running_for: None,
+            active: true,
+            game_window: Probe::Unknown,
+            wait_for_game_window: false,
+            game_process_alive: None,
+            ended: false,
+            failed_for: None,
+        }
     }
 
     fn secs(s: u64) -> Duration {
@@ -784,6 +873,28 @@ mod tests {
         assert_eq!(decide(running(GRACE.as_secs(), Probe::Missing)), Verdict::Stay, "the desktop says it has no window yet");
         assert_eq!(decide(running(WINDOW_WAIT.as_secs(), Probe::Missing)), Verdict::Ready);
         assert_eq!(decide(running(WINDOW_WAIT.as_secs(), Probe::Unknown)), Verdict::Ready);
+    }
+
+    #[test]
+    fn wait_for_game_window_ignores_timeout_and_focus_until_window_or_process_exit() {
+        let waiting = Facts {
+            shown_for: CEILING + secs(60),
+            running_for: Some(CEILING + secs(60)),
+            active: false,
+            wait_for_game_window: true,
+            game_process_alive: Some(true),
+            game_window: Probe::Missing,
+            ..starting()
+        };
+        assert_eq!(decide(waiting), Verdict::Stay);
+        assert_eq!(decide(Facts { game_window: Probe::Shown, ..waiting }), Verdict::Ready);
+        assert_eq!(decide(Facts { game_process_alive: Some(false), ..waiting }), Verdict::GiveUp);
+    }
+
+    #[test]
+    fn process_tree_includes_children_after_the_root_exits() {
+        let processes = [(20, 10), (30, 20), (40, 99)];
+        assert_eq!(process_tree(&processes, 10), [20, 30]);
     }
 
     #[test]

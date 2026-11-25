@@ -240,6 +240,9 @@ fn opt_row(o: &Opt, cx: &Ctx) -> Row {
     if matches!(o.id, "controls.sound_style" | "controls.dynamic_pitch" | "controls.sound_volume") {
         row = row.enabled(p.theme.controls.sounds);
     }
+    if matches!(o.id, "launch.motion" | "launch.shade" | "launch.wait_for_game_window") {
+        row = row.enabled(p.theme.launch.screen != LaunchScreen::Off);
+    }
     if !applies(o.id, &p.theme) {
         row = row.enabled(false).desc(tr!("No tab uses a layout this applies to."));
     }

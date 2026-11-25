@@ -6,6 +6,8 @@
   "Launch screen": "Layar peluncuran",
   "Launch screen motion": "Animasi layar peluncuran",
   "Launch screen shade": "Nuansa layar peluncuran",
+  "Wait for game window": "Tunggu jendela permainan",
+  "Keep the launch screen visible indefinitely while the game process is still loading or compiling shaders, instead of closing after the default timeout.": "Pertahankan layar peluncuran tanpa batas waktu selama proses permainan masih memuat atau mengompilasi shader, alih-alih menutup setelah batas waktu bawaan.",
   "Logo on black": "Logo di latar hitam",
   "Session card": "Kartu sesi",
   "Shown while a game starts, instead of the desktop.": "Ditampilkan saat permainan dimulai, menggantikan tampilan desktop.",

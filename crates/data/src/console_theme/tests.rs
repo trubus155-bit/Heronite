@@ -62,6 +62,21 @@ fn audio_output_device_defaults_to_the_system_and_is_persisted_in_prefs() {
 }
 
 #[test]
+fn wait_for_game_window_defaults_off_and_old_themes_load() {
+    let mut theme = ConsoleTheme::default();
+    assert!(!theme.launch.wait_for_game_window);
+
+    let mut json = serde_json::to_value(&theme).unwrap();
+    json["launch"].as_object_mut().unwrap().remove("waitForGameWindow");
+    let old: ConsoleTheme = serde_json::from_value(json).unwrap();
+    assert!(!old.launch.wait_for_game_window);
+
+    theme.launch.wait_for_game_window = true;
+    let round_trip = ConsoleTheme::from_json(&theme.to_json().unwrap()).unwrap();
+    assert!(round_trip.launch.wait_for_game_window);
+}
+
+#[test]
 fn unknown_keys_and_values_are_kept_or_defaulted() {
     let text = json!({
         "format": 1,

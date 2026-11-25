@@ -625,13 +625,16 @@ pub struct LaunchOptions {
     /// The art drifts slowly closer while the game starts.
     pub motion: bool,
     pub shade: LaunchShade,
+    /// Keep the launch screen up until the game's window appears or its processes stop.
+    #[serde(default)]
+    pub wait_for_game_window: bool,
     /// "Session ended": the time of the session and the total, when a game closes.
     pub session_card: bool,
 }
 
 impl Default for LaunchOptions {
     fn default() -> Self {
-        Self { screen: LaunchScreen::ArtLogo, motion: true, shade: LaunchShade::Soft, session_card: true }
+        Self { screen: LaunchScreen::ArtLogo, motion: true, shade: LaunchShade::Soft, wait_for_game_window: false, session_card: true }
     }
 }
 

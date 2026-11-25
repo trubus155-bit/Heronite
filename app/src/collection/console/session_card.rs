@@ -19,7 +19,7 @@ use heronite_launch::LaunchEvent;
 use super::super::CollectionView;
 use super::backdrop::backdrop_id;
 use crate::console::kit::{self, u};
-use crate::console::sound::{self, Sound};
+use crate::console::sound;
 use crate::console::{self, look, motion, themes};
 use crate::theme;
 
@@ -161,7 +161,7 @@ impl CollectionView {
                         let theme = look::theme();
                         if theme.controls.sounds {
                             let output_device = themes::prefs(&self.app_paths).audio_output_device;
-                            sound::play(Sound::Confirm, sound::Settings::of(&theme.controls, output_device));
+                            sound::notification(sound::Settings::of(&theme.controls, output_device));
                         }
                         cx.notify();
                     }

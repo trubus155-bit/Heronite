@@ -5,12 +5,24 @@
 
 use std::io;
 
-use windows_sys::Win32::Foundation::{HWND, LPARAM};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    SetForegroundWindow, ShowWindow, GWL_EXSTYLE, GW_OWNER, SW_RESTORE, WS_EX_TOOLWINDOW,
+    BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+    IsWindowVisible, SetForegroundWindow, ShowWindow, GWL_EXSTYLE, GW_OWNER, SW_RESTORE, WS_EX_TOOLWINDOW,
 };
+
+/// Whether one of `pids` owns a visible, non-empty top-level window.
+pub fn visible_window_of(pids: &[u32]) -> bool {
+    top_level_windows().into_iter().any(|(hwnd, pid)| {
+        if !pids.contains(&pid) {
+            return false;
+        }
+        let mut rect = RECT::default();
+        // SAFETY: `hwnd` came from EnumWindows; Windows validates it if it closed since.
+        unsafe { GetWindowRect(hwnd as HWND, &mut rect) != 0 && rect.right > rect.left && rect.bottom > rect.top }
+    })
+}
 
 /// Brings the top window of one of `pids` (the highest in the z-order, so
 /// the one used last) to the foreground, restoring it when it is minimised.

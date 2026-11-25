@@ -89,6 +89,21 @@ fn audio_output_device_is_a_machine_preference_with_system_default_fallback() {
 }
 
 #[test]
+fn wait_for_game_window_follows_launch_screen_availability() {
+    let mut p = ConsolePrefs::default();
+    let rows = rows_of(&p, Card::GamePage);
+    let shade = rows.iter().position(|row| row.id == "launch.shade").unwrap();
+    assert_eq!(rows[shade + 1].id, "launch.wait_for_game_window");
+    assert!(rows[shade + 1].enabled);
+
+    assert!(change(&mut p, "launch.screen", choice(2)));
+    let rows = rows_of(&p, Card::GamePage);
+    for id in ["launch.motion", "launch.shade", "launch.wait_for_game_window"] {
+        assert!(!rows.iter().find(|row| row.id == id).unwrap().enabled, "{id}");
+    }
+}
+
+#[test]
 fn tabs_stay_between_one_and_four() {
     let mut p = ConsolePrefs::default();
     let add = Command::new("tab.add", Arg::Press);
