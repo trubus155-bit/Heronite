@@ -36,6 +36,9 @@ pub fn build_plan_with_settings(
         crate::keep_awake::attach(&mut plan, probe, &game.title, settings);
         crate::scripts::attach(&mut plan, probe, game, settings);
         crate::clients::attach_companions(&mut plan, ctx, probe, game, settings);
+        if let Some(process) = plan.process_mut() {
+            process.hide_console_window = settings.hide_console_window;
+        }
         return plan;
     }
     let mut plan = match game.runner.as_str() {
@@ -73,6 +76,9 @@ pub fn build_plan_with_settings(
         crate::scripts::attach(&mut plan, probe, game, settings);
         crate::companions::attach(&mut plan, ctx, probe, game, settings);
         crate::steam_extras::attach(&mut plan, probe, game, settings);
+    }
+    if let Some(process) = plan.process_mut() {
+        process.hide_console_window = settings.hide_console_window;
     }
     plan
 }

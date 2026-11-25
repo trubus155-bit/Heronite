@@ -603,6 +603,15 @@ impl SettingsPanel {
             it.row = it.row.desc(if err.is_empty() { tr!("Appended to the launch command, like -nolauncher") } else { err });
             v.push(it);
         }
+        if game && cfg!(windows) {
+            v.push(self.c_toggle(
+                heronite_data::game_config::KEY_HIDE_CONSOLE_WINDOW,
+                false,
+                tr!("Hide console window"),
+                Some(tr!("Prevents an empty console window from appearing for console-based games")),
+                false,
+            ));
+        }
         let (extras, wrappers) = (logic::extras(), logic::wrappers());
         if extras {
             v.push(self.c_path("beforeScript", tr!("Script before launch"), false, cx));

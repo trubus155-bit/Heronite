@@ -91,6 +91,10 @@ pub(super) fn new_group(cmd: &mut Command) -> &mut Command {
     cmd.creation_flags(CREATE_NEW_PROCESS_GROUP)
 }
 
+pub(super) fn new_hidden_group(cmd: &mut Command) -> &mut Command {
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+}
+
 pub(super) fn track_group(child: &Child) {
     // SAFETY: an anonymous job with default security; null is a failure.
     let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };

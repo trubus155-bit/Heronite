@@ -75,6 +75,17 @@ impl SettingsPanel {
             notes.push(help(tr!("Added after the game's command, like -nolauncher")));
             start = start.field_help(self.text_row("launcherArgs", Some(tr!("Game arguments")), None, cx), notes);
         }
+        if game && cfg!(windows) {
+            start = start.child(self.toggle_row(
+                "hide-console-window",
+                heronite_data::game_config::KEY_HIDE_CONSOLE_WINDOW,
+                false,
+                tr!("Hide console window"),
+                Some(tr!("Prevents an empty console window from appearing for console-based games")),
+                false,
+                cx,
+            ));
+        }
         if game && legendary {
             start = start.child(self.toggle_row(
                 "offline",

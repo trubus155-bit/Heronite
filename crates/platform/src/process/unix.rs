@@ -32,6 +32,10 @@ pub(super) fn new_group(cmd: &mut Command) -> &mut Command {
     cmd.process_group(0)
 }
 
+pub(super) fn new_hidden_group(cmd: &mut Command) -> &mut Command {
+    new_group(cmd)
+}
+
 pub(super) fn track_group(_child: &Child) {}
 
 pub(super) fn group_alive(leader: u32) -> bool {

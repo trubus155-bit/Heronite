@@ -56,6 +56,12 @@ pub fn new_group(cmd: &mut Command) -> &mut Command {
     sys::new_group(cmd)
 }
 
+/// Starts a process group without showing a console window on Windows.
+/// On Unix this is equivalent to [`new_group`].
+pub fn new_hidden_group(cmd: &mut Command) -> &mut Command {
+    sys::new_hidden_group(cmd)
+}
+
 /// [`new_group`] for a helper program (a command-line tool the app runs and
 /// reads): on Windows it gets a console of its own without a window (Windows
 /// would open one for every such tool a windowed app starts), where

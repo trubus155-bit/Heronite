@@ -85,6 +85,7 @@ pub struct GameSettings {
     pub battleye_runtime: bool,
     pub prefer_system_libs: bool,
     pub verbose_logs: bool,
+    pub hide_console_window: bool,
     pub offline_mode: bool,
     pub language: String,
     /// `steamRuntime`: `false` or a runtime name/path.
@@ -235,6 +236,7 @@ impl GameSettings {
             battleye_runtime: b("battlEyeRuntime"),
             prefer_system_libs: b("preferSystemLibs"),
             verbose_logs: b("verboseLogs"),
+            hide_console_window: b(heronite_data::game_config::KEY_HIDE_CONSOLE_WINDOW),
             offline_mode: b("offlineMode"),
             language: text(m.get("language")),
             steam_runtime,
@@ -363,6 +365,14 @@ mod tests {
         assert_eq!(s.wine_prefix, "/home/u/pfx");
         assert_eq!(s.steam_runtime, None);
         assert_eq!(s.disable_umu, Some(true));
+    }
+
+    #[test]
+    fn hide_console_window_defaults_to_off_and_reads_game_setting() {
+        let off = GameSettings::from_map(json!({}).as_object().unwrap(), "/home/u");
+        let on = GameSettings::from_map(json!({"hideConsoleWindow": true}).as_object().unwrap(), "/home/u");
+        assert!(!off.hide_console_window);
+        assert!(on.hide_console_window);
     }
 
     #[test]

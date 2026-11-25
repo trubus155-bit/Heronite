@@ -52,7 +52,12 @@ fn proton_settings() -> GameSettings {
 #[test]
 fn linux_script_runs_native_with_wrappers_and_env() {
     let probe = FakeProbe::new("/home/u").with_file("/g/run.sh", b"#!/bin/sh\n").with_bin("gamemoderun", "/usr/bin/gamemoderun");
-    let s = settings(json!({"useGameMode": true, "launcherArgs": "--fast \"a b\"", "nvidiaPrime": true}));
+    let s = settings(json!({
+        "useGameMode": true,
+        "launcherArgs": "--fast \"a b\"",
+        "nvidiaPrime": true,
+        "hideConsoleWindow": true
+    }));
     let game = sideload("g", "/g/run.sh", "linux");
     let plan = build_plan_with_settings(
         &ctx(json!({})),
@@ -68,6 +73,7 @@ fn linux_script_runs_native_with_wrappers_and_env() {
     assert_eq!(p.command.cwd.as_deref(), Some("/g"));
     assert_eq!(p.command.env["HEROIC_APP_NAME"], "g");
     assert_eq!(p.command.env["DRI_PRIME"], "1");
+    assert!(p.hide_console_window);
     assert_eq!(p.stop.kill_patterns, ["run.sh"]);
     assert_eq!(p.make_executable, None);
     let locked = FakeProbe::new("/home/u").with_non_executable("/g/run.sh").with_file("/g/run.sh", b"#!/bin/sh\n");
@@ -78,6 +84,7 @@ fn linux_script_runs_native_with_wrappers_and_env() {
         panic!()
     };
     assert_eq!(p.make_executable.as_deref(), Some("/g/run.sh"));
+    assert!(!p.hide_console_window);
 }
 
 // Linux games run only on Linux.
@@ -482,6 +489,26 @@ fn a_windows_game_starts_in_the_folder_it_names() {
     let plan = build::windows_plan(&probe, &game, &settings(json!({})), exe, vec![], "sideload");
     let LaunchPlan::Native(p) = plan else { panic!("{plan:?}") };
     assert_eq!(p.command.cwd.as_deref(), Some(root));
+}
+
+#[cfg(windows)]
+#[test]
+fn a_windows_game_carries_its_hide_console_window_setting() {
+    let game = sideload("g", r"C:\Games\game.exe", "Windows");
+    let probe = FakeProbe::new("/h").with_path(r"C:\Games\game.exe");
+    let plan = build_plan_with_settings(
+        &ctx(json!({})),
+        &probe,
+        &game,
+        Some(&meta("executable")),
+        &settings(json!({"hideConsoleWindow": true})),
+        &Default::default(),
+    );
+    assert!(plan.process().unwrap().hide_console_window);
+
+    let plan =
+        build_plan_with_settings(&ctx(json!({})), &probe, &game, Some(&meta("executable")), &settings(json!({})), &Default::default());
+    assert!(!plan.process().unwrap().hide_console_window);
 }
 
 /// An emulated game with its own command line and no emulator of the

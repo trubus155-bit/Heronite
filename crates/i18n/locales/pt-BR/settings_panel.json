@@ -12,6 +12,8 @@
   "Add an environment variable": "Adicionar uma variável de ambiente",
   "Add a wrapper": "Adicionar um wrapper",
   "Run the game offline": "Executar o jogo offline",
+  "Hide console window": "Ocultar janela do console",
+  "Prevents an empty console window from appearing for console-based games": "Impede que uma janela de console vazia apareça em jogos baseados em console",
   "Verbose logs": "Logs detalhados",
   "Alternative executable": "Executável alternativo",
   "Preferred language code": "Código do idioma preferido",

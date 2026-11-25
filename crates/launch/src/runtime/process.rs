@@ -206,7 +206,7 @@ pub(super) fn run_process(shared: &Shared, log: &Arc<GameLog>, req: &LaunchReque
     let gpu_exe = plan.gpu_preference.and_then(|p| set_gpu_preference(shared, &*services.gpu_registry, log, &command.program, p));
     log.info(&format!("Launching {}: {}\n", req.title, log_writer::command_line_for_log(&command)));
     log.info("Game Output:");
-    let mut handle = match shared.spawner.spawn_logged(&command, Some(log.clone())) {
+    let mut handle = match shared.spawner.spawn_game(&command, Some(log.clone()), plan.hide_console_window) {
         Ok(h) => match plan.sandboxed {
             true => Box::new(Sandboxed::new(h, shared.procs.clone())),
             false => h,

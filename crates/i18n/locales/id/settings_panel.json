@@ -12,6 +12,8 @@
   "Add an environment variable": "Tambahkan variabel lingkungan",
   "Add a wrapper": "Tambahkan wrapper",
   "Run the game offline": "Jalankan permainan secara offline",
+  "Hide console window": "Sembunyikan jendela konsol",
+  "Prevents an empty console window from appearing for console-based games": "Mencegah jendela konsol kosong muncul saat menjalankan permainan berbasis konsol",
   "Verbose logs": "Log mendetail",
   "Alternative executable": "Berkas eksekusi alternatif",
   "Preferred language code": "Kode bahasa yang diutamakan",

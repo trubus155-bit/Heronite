@@ -42,6 +42,10 @@ pub trait Spawner: Send + Sync {
     fn spawn_logged(&self, cmd: &Command, _log: Option<Arc<GameLog>>) -> io::Result<Box<dyn ProcessHandle>> {
         self.spawn(cmd, None)
     }
+    /// Starts the game's main process, optionally without a console window.
+    fn spawn_game(&self, cmd: &Command, log: Option<Arc<GameLog>>, _hide_console_window: bool) -> io::Result<Box<dyn ProcessHandle>> {
+        self.spawn_logged(cmd, log)
+    }
     /// Starts a command-line helper the app runs beside games (Comet), its
     /// output appended to `log_file` as it is (nothing of the command is
     /// written: its arguments may be secret). On Windows it gets a console
@@ -185,7 +189,7 @@ impl SystemSpawner {
     /// thread): the game keeps working, and keeps logging, if the launcher
     /// exits before it does.
     /// `helper`: see [`Spawner::spawn_helper`].
-    fn spawn_with(&self, cmd: &Command, sink: Sink, helper: bool) -> io::Result<Box<dyn ProcessHandle>> {
+    fn spawn_with(&self, cmd: &Command, sink: Sink, helper: bool, hide_console_window: bool) -> io::Result<Box<dyn ProcessHandle>> {
         use std::process::Stdio;
         let host = if cfg!(windows) { script_host(&cmd.program) } else { None };
         let mut c = match host {
@@ -211,6 +215,8 @@ impl SystemSpawner {
         // Windows opens none for it.
         if cfg!(windows) && (helper || host.is_some() || is_batch(&cmd.program)) {
             os::new_helper_group(&mut c);
+        } else if hide_console_window {
+            os::new_hidden_group(&mut c);
         } else {
             os::new_group(&mut c);
         }
@@ -488,15 +494,19 @@ fn extension(path: &str) -> String {
 
 impl Spawner for SystemSpawner {
     fn spawn(&self, cmd: &Command, log_path: Option<&Path>) -> io::Result<Box<dyn ProcessHandle>> {
-        self.spawn_with(cmd, log_path.map_or(Sink::None, |p| Sink::File(p.to_path_buf())), false)
+        self.spawn_with(cmd, log_path.map_or(Sink::None, |p| Sink::File(p.to_path_buf())), false, false)
     }
 
     fn spawn_logged(&self, cmd: &Command, log: Option<Arc<GameLog>>) -> io::Result<Box<dyn ProcessHandle>> {
-        self.spawn_with(cmd, log.map_or(Sink::None, Sink::Log), false)
+        self.spawn_with(cmd, log.map_or(Sink::None, Sink::Log), false, false)
+    }
+
+    fn spawn_game(&self, cmd: &Command, log: Option<Arc<GameLog>>, hide_console_window: bool) -> io::Result<Box<dyn ProcessHandle>> {
+        self.spawn_with(cmd, log.map_or(Sink::None, Sink::Log), false, hide_console_window)
     }
 
     fn spawn_helper(&self, cmd: &Command, log_file: Option<&Path>) -> io::Result<Box<dyn ProcessHandle>> {
-        self.spawn_with(cmd, log_file.map_or(Sink::None, |p| Sink::Append(p.to_path_buf())), true)
+        self.spawn_with(cmd, log_file.map_or(Sink::None, |p| Sink::Append(p.to_path_buf())), true, false)
     }
 
     fn open_uri(&self, uri: &str) -> io::Result<()> {

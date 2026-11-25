@@ -85,6 +85,8 @@ pub struct ProcessPlan {
     /// The game runs in the sandbox (see [`crate::sandbox`]): the programs
     /// alongside it join that sandbox.
     pub sandboxed: bool,
+    /// Windows: start the game without showing its console window.
+    pub hide_console_window: bool,
     /// Windows: `command` is `legendary launch ... --json`. legendary signs
     /// in and names the game's program, which starts instead of it (see
     /// [`crate::legendary_windows`]).

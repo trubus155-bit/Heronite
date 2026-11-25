@@ -20,6 +20,9 @@ use crate::paths::DataPaths;
 
 pub type Settings = Map<String, Value>;
 
+/// Per-game setting: do not show a console window for the launched game.
+pub const KEY_HIDE_CONSOLE_WINDOW: &str = "hideConsoleWindow";
+
 /// Default install folder of a new setup (`~/Games/Heronite`). On Windows
 /// `<home>\Games\Heronite`, and the user's folder when `home` is empty
 /// (Windows sets no `HOME` of its own).
