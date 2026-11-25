@@ -275,7 +275,8 @@ impl CollectionView {
             LaunchEvent::Launching { app_name } => {
                 let theme = look::theme();
                 if theme.controls.sounds {
-                    sound::launch(sound::Settings::of(&theme.controls));
+                    let output_device = console::themes::prefs(&self.app_paths).audio_output_device;
+                    sound::launch(sound::Settings::of(&theme.controls, output_device));
                 }
                 self.cover_launch(app_name, cx);
             }

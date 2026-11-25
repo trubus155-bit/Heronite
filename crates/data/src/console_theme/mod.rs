@@ -817,6 +817,8 @@ impl ConsoleTheme {
 #[serde(default, rename_all = "camelCase")]
 pub struct ConsolePrefs {
     pub theme: ConsoleTheme,
+    /// An empty device follows the operating system's current output.
+    pub audio_output_device: String,
     /// The preset or saved theme `theme` started from (shows "edited" when
     /// they differ).
     pub based_on: String,
@@ -843,6 +845,7 @@ impl Default for ConsolePrefs {
     fn default() -> Self {
         Self {
             theme: presets::default_theme(),
+            audio_output_device: String::new(),
             based_on: presets::DEFAULT.into(),
             auto_console: AutoConsole::Off,
             console_button: ConsoleButton::Off,

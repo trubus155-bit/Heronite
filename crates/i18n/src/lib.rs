@@ -489,6 +489,7 @@ mod tests {
         assert_eq!(Lang::parse("FR_ci"), Some(Lang::Fr));
         assert_eq!(Lang::parse("id_ID.UTF-8"), Some(Lang::Id));
         assert_eq!(Lang::parse("id-ID"), Some(Lang::Id));
+        assert_eq!(Lang::parse("id"), Some(Lang::Id));
         assert_eq!(Lang::parse("ja_JP"), None);
         assert_eq!(Lang::parse("C"), None);
         assert_eq!(Preference::parse("pt-BR"), Preference::Fixed(Lang::PtBr));
@@ -499,6 +500,12 @@ mod tests {
         for p in [Preference::System].into_iter().chain(Lang::ALL.map(Preference::Fixed)) {
             assert_eq!(Preference::parse(p.as_str()), p);
         }
+    }
+
+    #[test]
+    fn system_locale_uses_indonesian_and_falls_back_to_english() {
+        assert_eq!(lang_from_env(|key| (key == "LANG").then(|| "id-ID".to_owned())), Lang::Id);
+        assert_eq!(lang_from_env(|key| (key == "LANG").then(|| "ja_JP".to_owned())), Lang::En);
     }
 
     #[test]

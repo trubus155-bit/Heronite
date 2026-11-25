@@ -30,6 +30,22 @@ fn set_sound_style(prefs: &mut ConsolePrefs, index: usize) {
     }
 }
 
+fn audio_output_options() -> Vec<String> {
+    std::iter::once(tr(n_!("System Default")).to_string()).chain(sound::available_output_devices()).collect()
+}
+
+fn audio_output_index(prefs: &ConsolePrefs) -> usize {
+    if prefs.audio_output_device.is_empty() {
+        return 0;
+    }
+    sound::available_output_devices().iter().position(|device| device == &prefs.audio_output_device).map_or(0, |index| index + 1)
+}
+
+fn set_audio_output(prefs: &mut ConsolePrefs, index: usize) {
+    prefs.audio_output_device =
+        if index == 0 { String::new() } else { sound::available_output_devices().get(index - 1).cloned().unwrap_or_default() };
+}
+
 pub(super) enum Kind {
     Toggle {
         get: fn(&ConsolePrefs) -> bool,
@@ -326,10 +342,22 @@ pub(super) static OPTS: &[Opt] = &[
     sel!("controls.hints", Controls, n_!("Hint bar"), "", &[], Hints, hints_name, theme.controls.hints),
     tgl!("controls.sounds", Controls, n_!("Navigation sounds"), "", &[], theme.controls.sounds),
     Opt {
+        id: "controls.audio_output_device",
+        card: Card::Controls,
+        label: n_!("Audio Output Device"),
+        desc: n_!(
+            "System Default follows the current system output. If a selected device is unavailable, audio falls back to System Default."
+        ),
+        on: &[],
+        kind: Kind::DynamicChoice { names: audio_output_options, get: audio_output_index, set: set_audio_output },
+    },
+    Opt {
         id: "controls.sound_style",
         card: Card::Controls,
         label: n_!("Sound style"),
-        desc: n_!("Soft is low and round. Classic is the first, higher one."),
+        desc: n_!(
+            "Soft is low and round. Classic is the first, higher one. External sound packs go in sounds/<style>/ beside the executable."
+        ),
         on: &[],
         kind: Kind::DynamicChoice { names: sound_style_options, get: sound_style_index, set: set_sound_style },
     },

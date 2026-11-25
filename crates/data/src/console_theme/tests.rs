@@ -11,6 +11,22 @@ fn default_is_classic_and_round_trips() {
 }
 
 #[test]
+fn audio_output_device_defaults_to_the_system_and_is_persisted_in_prefs() {
+    let default = ConsolePrefs::default();
+    assert!(default.audio_output_device.is_empty());
+
+    let mut prefs = default.clone();
+    prefs.audio_output_device = "HDMI".into();
+    let mut json = serde_json::to_value(&prefs).unwrap();
+    json.as_object_mut().unwrap().remove("audioOutputDevice");
+    let old: ConsolePrefs = serde_json::from_value(json).unwrap();
+    assert!(old.audio_output_device.is_empty());
+
+    let round_trip: ConsolePrefs = serde_json::from_str(&serde_json::to_string(&prefs).unwrap()).unwrap();
+    assert_eq!(round_trip.audio_output_device, "HDMI");
+}
+
+#[test]
 fn unknown_keys_and_values_are_kept_or_defaulted() {
     let text = json!({
         "format": 1,

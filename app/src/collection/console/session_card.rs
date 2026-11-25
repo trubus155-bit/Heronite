@@ -20,7 +20,7 @@ use super::super::CollectionView;
 use super::backdrop::backdrop_id;
 use crate::console::kit::{self, u};
 use crate::console::sound::{self, Sound};
-use crate::console::{self, look, motion};
+use crate::console::{self, look, motion, themes};
 use crate::theme;
 
 /// After the console comes to the front.
@@ -160,7 +160,8 @@ impl CollectionView {
                         self.console.session.shown = Some((card, Instant::now()));
                         let theme = look::theme();
                         if theme.controls.sounds {
-                            sound::play(Sound::Confirm, sound::Settings::of(&theme.controls));
+                            let output_device = themes::prefs(&self.app_paths).audio_output_device;
+                            sound::play(Sound::Confirm, sound::Settings::of(&theme.controls, output_device));
                         }
                         cx.notify();
                     }

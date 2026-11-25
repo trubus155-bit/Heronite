@@ -1,6 +1,6 @@
 //! Console mode UI sounds, played through rodio's native audio output.
 //!
-//! WAV packages live beside the executable at `sounds/<style>/<sound>.wav`.
+//! Sound packages live beside the executable at `sounds/<style>/`.
 
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor, Write};
@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
 use heronite_data::console_theme::{ControlOptions, SoundStyle, SOUND_VOLUME};
+use rodio::cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{buffer::SamplesBuffer, Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 
 use super::Pad;
@@ -22,10 +23,14 @@ pub enum Sound {
     Back,
     Tab,
     Launch,
+    Notification,
+    Restore,
+    LaunchSuccess,
 }
 
 impl Sound {
-    const ALL: [Sound; 5] = [Sound::Move, Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch];
+    const ALL: [Sound; 8] =
+        [Sound::Move, Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch, Sound::Notification, Sound::Restore, Sound::LaunchSuccess];
 
     fn name(self) -> &'static str {
         match self {
@@ -34,6 +39,9 @@ impl Sound {
             Sound::Back => "back",
             Sound::Tab => "tab",
             Sound::Launch => "launch",
+            Sound::Notification => "notification",
+            Sound::Restore => "restore",
+            Sound::LaunchSuccess => "launch_success",
         }
     }
 
@@ -42,13 +50,17 @@ impl Sound {
     fn tones(self, style: SoundStyle) -> (&'static [(f32, f32)], f32) {
         match (style, self) {
             (SoundStyle::Classic, Sound::Move) => (&[(1150., 26.)], 0.22),
-            (SoundStyle::Classic, Sound::Confirm | Sound::Launch) => (&[(660., 45.), (990., 80.)], 0.3),
+            (SoundStyle::Classic, Sound::Confirm | Sound::Launch | Sound::Notification | Sound::Restore | Sound::LaunchSuccess) => {
+                (&[(660., 45.), (990., 80.)], 0.3)
+            }
             (SoundStyle::Classic, Sound::Back) => (&[(720., 45.), (480., 80.)], 0.3),
             (SoundStyle::Classic, Sound::Tab) => (&[(880., 34.), (1180., 52.)], 0.26),
             // Low and round: a tick that dips a little, then rising (G4 to D5)
             // and falling (A4 to E4) fifths for yes and back.
             (SoundStyle::Soft, Sound::Move) => (&[(520., 60.)], 0.26),
-            (SoundStyle::Soft, Sound::Confirm | Sound::Launch) => (&[(392., 50.), (587., 110.)], 0.34),
+            (SoundStyle::Soft, Sound::Confirm | Sound::Launch | Sound::Notification | Sound::Restore | Sound::LaunchSuccess) => {
+                (&[(392., 50.), (587., 110.)], 0.34)
+            }
             (SoundStyle::Soft, Sound::Back) => (&[(440., 50.), (330., 100.)], 0.34),
             (SoundStyle::Soft, Sound::Tab) => (&[(494., 38.), (587., 64.)], 0.3),
         }
@@ -101,11 +113,17 @@ pub struct Settings {
     /// Percent, [`SOUND_VOLUME`].
     pub volume: u8,
     pub dynamic_pitch: bool,
+    pub output_device: String,
 }
 
 impl Settings {
-    pub fn of(c: &ControlOptions) -> Self {
-        Self { style: c.sound_style.clone(), volume: c.sound_volume.clamp(SOUND_VOLUME.0, SOUND_VOLUME.1), dynamic_pitch: c.dynamic_pitch }
+    pub fn of(c: &ControlOptions, output_device: String) -> Self {
+        Self {
+            style: c.sound_style.clone(),
+            volume: c.sound_volume.clamp(SOUND_VOLUME.0, SOUND_VOLUME.1),
+            dynamic_pitch: c.dynamic_pitch,
+            output_device,
+        }
     }
 
     /// The factor on a sound's level: steeper than linear, as loudness is.
@@ -125,7 +143,7 @@ struct StyleCatalog {
     styles: Vec<StyleOption>,
 }
 
-const SOUND_README: &str = "External UI sound packages\n\
+const LEGACY_SOUND_README: &str = "External UI sound packages\n\
 \n\
 Create one subfolder per style inside sounds/, for example sounds/PS5/.\n\
 Use these WAV file names:\n\
@@ -137,6 +155,25 @@ Use these WAV file names:\n\
 \n\
 Each WAV file must be no longer than 5 seconds. A style appears when it has\n\
 at least one valid sound file. Missing sounds use a built-in fallback.\n";
+
+const SOUND_README: &str = "External UI sound packages\n\
+\n\
+Create one subfolder per style inside sounds/, for example sounds/PS5/.\n\
+Use .wav, .ogg, .mp3, or .flac files with these names:\n\
+  move        Navigation between items\n\
+  confirm     Confirming a selection\n\
+  back        Going back\n\
+  tab         Changing tabs\n\
+  launch      Game launch begins (falls back to confirm.wav)\n\
+  notification Toast/banner appears (falls back to confirm.wav)\n\
+  restore     Heronite window is restored (falls back to confirm.wav)\n\
+  launch_success  Game process successfully starts (optional; no fallback)\n\
+\n\
+Each sound must be no longer than 5 seconds. A style appears when it has at\n\
+least one valid sound file. Missing navigation sounds use built-in sounds;\n\
+notification and restore use confirm; launch_success is silent if absent.\n\
+Select Audio Output Device in Console Settings. System Default follows the\n\
+current system output; unavailable selected devices fall back to that default.\n";
 
 fn sound_root() -> Option<PathBuf> {
     match std::env::current_exe() {
@@ -160,7 +197,15 @@ fn prepare_sound_folder(root: &Path) {
                 log::warn!("console sounds: cannot write {}: {e}", readme.display());
             }
         }
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => match std::fs::read_to_string(&readme) {
+            Ok(contents) if contents == LEGACY_SOUND_README => {
+                if let Err(e) = std::fs::write(&readme, SOUND_README) {
+                    log::warn!("console sounds: cannot update {}: {e}", readme.display());
+                }
+            }
+            Ok(_) => {}
+            Err(e) => log::warn!("console sounds: cannot inspect {}: {e}", readme.display()),
+        },
         Err(e) => log::warn!("console sounds: cannot create {}: {e}", readme.display()),
     }
 }
@@ -199,7 +244,7 @@ struct AudioSample {
 }
 
 impl AudioSample {
-    fn from_wav(bytes: Vec<u8>) -> Result<Self> {
+    fn from_audio(bytes: Vec<u8>) -> Result<Self> {
         let decoder = Decoder::new(Cursor::new(bytes))?;
         let channels = decoder.channels();
         let sample_rate = decoder.sample_rate();
@@ -257,12 +302,12 @@ fn wav(tones: &[(f32, f32)], level: f32, voice: &Voice) -> Vec<u8> {
 
 fn built_in(style: SoundStyle, sound: Sound) -> AudioSample {
     let (tones, level) = sound.tones(style);
-    AudioSample::from_wav(wav(tones, level, &Voice::of(style))).expect("built-in WAV is valid")
+    AudioSample::from_audio(wav(tones, level, &Voice::of(style))).expect("built-in WAV is valid")
 }
 
 fn load_external(path: &std::path::Path) -> Option<AudioSample> {
     match std::fs::read(path) {
-        Ok(bytes) => match AudioSample::from_wav(bytes) {
+        Ok(bytes) => match AudioSample::from_audio(bytes) {
             Ok(sample) => Some(sample),
             Err(e) => {
                 log::warn!("console sounds: cannot load {}: {e}; using built-in sound", path.display());
@@ -308,20 +353,22 @@ fn custom_pack_valid(root: &Path, style: &str) -> bool {
     }
     let mut has_valid_sound = false;
     for sound in Sound::ALL {
-        let path = dir.join(format!("{}.wav", sound.name()));
-        match std::fs::metadata(&path) {
-            Ok(metadata) if metadata.is_file() => {
-                if let Err(e) = validate_external(&path) {
-                    log::warn!("console sounds: invalid {}: {e}; using Classic", path.display());
+        for extension in ["wav", "ogg", "mp3", "flac"] {
+            let path = dir.join(format!("{}.{}", sound.name(), extension));
+            match std::fs::metadata(&path) {
+                Ok(metadata) if metadata.is_file() => {
+                    if let Err(e) = validate_external(&path) {
+                        log::warn!("console sounds: invalid {}: {e}; using Classic", path.display());
+                        return false;
+                    }
+                    has_valid_sound = true;
+                }
+                Ok(_) => return false,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    log::warn!("console sounds: cannot inspect {}: {e}", path.display());
                     return false;
                 }
-                has_valid_sound = true;
-            }
-            Ok(_) => return false,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => {
-                log::warn!("console sounds: cannot inspect {}: {e}", path.display());
-                return false;
             }
         }
     }
@@ -376,10 +423,16 @@ fn load_style(root: Option<&Path>, style: &str) -> HashMap<Sound, AudioSample> {
     let fallback_style = builtin_style(style);
     let mut sounds = HashMap::new();
     for sound in Sound::ALL {
-        let path = root.map(|root| root.join(style).join(format!("{}.wav", sound.name())));
-        if let Some(sample) = path.as_deref().and_then(load_external) {
+        let sample = root.and_then(|root| {
+            ["wav", "ogg", "mp3", "flac"]
+                .into_iter()
+                .map(|extension| root.join(style).join(format!("{}.{}", sound.name(), extension)))
+                .find(|path| path.is_file())
+                .and_then(|path| load_external(&path))
+        });
+        if let Some(sample) = sample {
             sounds.insert(sound, sample);
-        } else if sound != Sound::Launch {
+        } else if !matches!(sound, Sound::Launch | Sound::Notification | Sound::Restore | Sound::LaunchSuccess) {
             sounds.insert(sound, built_in(fallback_style, sound));
         }
     }
@@ -387,7 +440,7 @@ fn load_style(root: Option<&Path>, style: &str) -> HashMap<Sound, AudioSample> {
 }
 
 fn sample_for(sounds: &HashMap<Sound, AudioSample>, sound: Sound) -> Option<&AudioSample> {
-    if sound == Sound::Launch && !sounds.contains_key(&Sound::Launch) {
+    if matches!(sound, Sound::Launch | Sound::Notification | Sound::Restore) && !sounds.contains_key(&sound) {
         sounds.get(&Sound::Confirm)
     } else {
         sounds.get(&sound)
@@ -399,6 +452,70 @@ struct Request {
     settings: Settings,
     pitch: f32,
     replaces_press: bool,
+}
+
+/// Names of currently enumerated output devices, for the settings picker.
+pub fn available_output_devices() -> Vec<String> {
+    let host = rodio::cpal::default_host();
+    let devices = match host.output_devices() {
+        Ok(devices) => devices,
+        Err(e) => {
+            log::warn!("console sounds: cannot enumerate output devices: {e}");
+            return Vec::new();
+        }
+    };
+    let mut names = Vec::new();
+    for device in devices {
+        match device.name() {
+            Ok(name) if !names.contains(&name) => names.push(name),
+            Ok(_) => {}
+            Err(e) => log::warn!("console sounds: cannot read output device name: {e}"),
+        }
+    }
+    names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    names
+}
+
+const OUTPUT_RETRY: Duration = Duration::from_secs(2);
+const OUTPUT_REFRESH: Duration = Duration::from_secs(5);
+const DEVICE_POLL: Duration = Duration::from_secs(1);
+
+struct AudioOutput {
+    _stream: OutputStream,
+    handle: OutputStreamHandle,
+    selected_device: String,
+    default_device: String,
+    connected_at: Instant,
+}
+
+fn open_output(selected_device: &str) -> Result<AudioOutput> {
+    let host = rodio::cpal::default_host();
+    let default_device = host.default_output_device().and_then(|device| device.name().ok()).unwrap_or_default();
+    if !selected_device.is_empty() {
+        match host.output_devices() {
+            Ok(devices) => {
+                if let Some(device) = devices.into_iter().find(|device| device.name().is_ok_and(|name| name == selected_device)) {
+                    match OutputStream::try_from_device(&device) {
+                        Ok((stream, handle)) => {
+                            return Ok(AudioOutput {
+                                _stream: stream,
+                                handle,
+                                selected_device: selected_device.to_owned(),
+                                default_device,
+                                connected_at: Instant::now(),
+                            });
+                        }
+                        Err(e) => log::warn!("console sounds: cannot open selected output {selected_device:?}: {e}; trying system default"),
+                    }
+                } else {
+                    log::warn!("console sounds: selected output {selected_device:?} is unavailable; trying system default");
+                }
+            }
+            Err(e) => log::warn!("console sounds: cannot enumerate outputs: {e}; trying system default"),
+        }
+    }
+    let (stream, handle) = OutputStream::try_default()?;
+    Ok(AudioOutput { _stream: stream, handle, selected_device: selected_device.to_owned(), default_device, connected_at: Instant::now() })
 }
 
 const PRESS_WINDOW: Duration = Duration::from_millis(100);
@@ -431,7 +548,7 @@ fn pitch_for(sound: Sound, dynamic_pitch: bool, preview: bool, last_move: &mut O
 /// keeps only the active package's decoded sounds resident.
 struct Player {
     tx: Sender<Request>,
-    last: [Option<Instant>; 5],
+    last: [Option<Instant>; 8],
     last_preview: Option<Instant>,
     last_move: Option<Instant>,
     move_step: usize,
@@ -440,12 +557,14 @@ struct Player {
 static PLAYER: Mutex<Option<Player>> = Mutex::new(None);
 
 impl Player {
-    fn new(initial_style: String) -> Self {
+    fn new(initial: &Settings) -> Self {
         let (tx, rx) = channel();
-        if let Err(e) = std::thread::Builder::new().name("console-sounds".into()).spawn(move || work(rx, initial_style)) {
+        let initial_style = initial.style.clone();
+        let initial_device = initial.output_device.clone();
+        if let Err(e) = std::thread::Builder::new().name("console-sounds".into()).spawn(move || work(rx, initial_style, initial_device)) {
             log::warn!("console sounds: could not start audio worker: {e}");
         }
-        Self { tx, last: [None; 5], last_preview: None, last_move: None, move_step: 0 }
+        Self { tx, last: [None; 8], last_preview: None, last_move: None, move_step: 0 }
     }
 
     fn send(&mut self, sound: Sound, settings: Settings, preview: bool, replaces_press: bool) {
@@ -464,7 +583,7 @@ impl Player {
 
 fn player(settings: &Settings) {
     let mut player = PLAYER.lock().unwrap_or_else(|e| e.into_inner());
-    player.get_or_insert_with(|| Player::new(settings.style.clone()));
+    player.get_or_insert_with(|| Player::new(settings));
 }
 
 /// Starts the worker with only the currently selected package resident.
@@ -474,7 +593,7 @@ pub fn initialize(settings: Settings) {
 
 fn send(sound: Sound, settings: Settings, preview: bool, replaces_press: bool) {
     let mut player = PLAYER.lock().unwrap_or_else(|e| e.into_inner());
-    player.get_or_insert_with(|| Player::new(settings.style.clone())).send(sound, settings, preview, replaces_press);
+    player.get_or_insert_with(|| Player::new(&settings)).send(sound, settings, preview, replaces_press);
 }
 
 /// Plays `sound` for a controller press.
@@ -487,51 +606,87 @@ pub fn launch(settings: Settings) {
     send(Sound::Launch, settings, false, true);
 }
 
+/// Plays the optional sound for a game process that was successfully spawned.
+pub fn launch_success(settings: Settings) {
+    send(Sound::LaunchSuccess, settings, false, false);
+}
+
+/// Plays the sound for a toast/banner.
+pub fn notification(settings: Settings) {
+    send(Sound::Notification, settings, false, false);
+}
+
+/// Plays the sound when Heronite's window is restored after a game.
+pub fn restore(settings: Settings) {
+    send(Sound::Restore, settings, false, false);
+}
+
 /// Plays `sound` as `settings` make it, for the user to hear a change.
 pub fn preview(sound: Sound, settings: Settings) {
     send(sound, settings, true, true);
 }
 
-fn work(rx: Receiver<Request>, initial_style: String) {
+fn work(rx: Receiver<Request>, initial_style: String, initial_output_device: String) {
     let catalog = catalog();
     let style = resolve_style(&initial_style);
     let sounds = load_style(catalog.root.as_deref(), &style);
-    let (_stream, output) = match OutputStream::try_default() {
-        Ok(stream) => stream,
-        Err(e) => {
-            log::warn!("console sounds: cannot open default audio output: {e}");
-            return;
-        }
-    };
-    play_requests(rx, &output, catalog.root.as_deref(), style, sounds);
+    play_requests(rx, initial_output_device, &catalog, style, sounds);
 }
 
 fn play_requests(
     rx: Receiver<Request>,
-    output: &OutputStreamHandle,
-    root: Option<&Path>,
+    initial_output_device: String,
+    catalog: &StyleCatalog,
     mut style: String,
     mut sounds: HashMap<Sound, AudioSample>,
 ) {
     let mut running: Vec<(Sink, Instant)> = Vec::new();
+    let mut selected_device = initial_output_device;
+    let mut output: Option<AudioOutput> = None;
+    let mut last_attempt = Instant::now() - OUTPUT_RETRY;
+    let mut next_device_poll = Instant::now();
+    let mut default_device = String::new();
     loop {
-        let request = if running.is_empty() {
-            match rx.recv() {
-                Ok(request) => Some(request),
-                Err(_) => break,
-            }
-        } else {
-            match rx.recv_timeout(Duration::from_millis(40)) {
-                Ok(request) => Some(request),
-                Err(RecvTimeoutError::Timeout) => None,
-                Err(RecvTimeoutError::Disconnected) => break,
-            }
+        let request = match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(request) => Some(request),
+            Err(RecvTimeoutError::Timeout) => None,
+            Err(RecvTimeoutError::Disconnected) => break,
         };
         running.retain(|(sink, _)| !sink.empty());
+        let mut requested_device_change = false;
+        if let Some(request) = &request {
+            requested_device_change = request.settings.output_device != selected_device;
+            selected_device.clone_from(&request.settings.output_device);
+        }
+        if Instant::now() >= next_device_poll {
+            let host = rodio::cpal::default_host();
+            default_device = host.default_output_device().and_then(|device| device.name().ok()).unwrap_or_default();
+            next_device_poll = Instant::now() + DEVICE_POLL;
+        }
+        let default_changed = output.as_ref().is_some_and(|current| current.default_device != default_device);
+        let reconnect = output.as_ref().map_or(true, |current| {
+            current.selected_device != selected_device
+                || current.default_device != default_device
+                || current.connected_at.elapsed() >= OUTPUT_REFRESH
+        });
+        if reconnect && (requested_device_change || default_changed || last_attempt.elapsed() >= OUTPUT_RETRY) {
+            last_attempt = Instant::now();
+            for (sink, _) in &running {
+                sink.stop();
+            }
+            running.clear();
+            match open_output(&selected_device) {
+                Ok(next) => output = Some(next),
+                Err(e) => {
+                    log::warn!("console sounds: cannot open audio output: {e}; will retry");
+                    output = None;
+                }
+            }
+        }
         let Some(Request { sound, settings, pitch, replaces_press }) = request else { continue };
         let next_style = resolve_style(&settings.style);
         if next_style != style {
-            sounds = load_style(root, &next_style);
+            sounds = load_style(catalog.root.as_deref(), &next_style);
             style = next_style;
         }
         if replaces_press {
@@ -545,7 +700,8 @@ fn play_requests(
             continue;
         }
         let Some(sample) = sample_for(&sounds, sound) else { continue };
-        let sink = match Sink::try_new(output) {
+        let Some(output) = output.as_ref() else { continue };
+        let sink = match Sink::try_new(&output.handle) {
             Ok(sink) => sink,
             Err(e) => {
                 log::warn!("console sounds: cannot create playback sink: {e}");
@@ -608,7 +764,7 @@ mod tests {
 
     #[test]
     fn decoded_builtin_wavs_are_preloaded_as_samples() {
-        let sample = AudioSample::from_wav(make(SoundStyle::Soft, Sound::Confirm)).unwrap();
+        let sample = AudioSample::from_audio(make(SoundStyle::Soft, Sound::Confirm)).unwrap();
         assert_eq!(sample.channels, 1);
         assert_eq!(sample.sample_rate, RATE);
         assert!(!sample.samples.is_empty());
@@ -621,7 +777,7 @@ mod tests {
         let external = wav(&[(880., 100.)], 0.8, &classic());
         std::fs::write(&path, &external).unwrap();
         let loaded = load_or_builtin(Some(path.as_path()), built_in(SoundStyle::Classic, Sound::Move));
-        let external_sample = AudioSample::from_wav(external).unwrap();
+        let external_sample = AudioSample::from_audio(external).unwrap();
         assert_eq!(loaded.samples, external_sample.samples);
 
         let fallback = built_in(SoundStyle::Classic, Sound::Move);
@@ -653,14 +809,17 @@ mod tests {
     }
 
     #[test]
-    fn missing_launch_uses_the_active_packages_confirm_sound() {
+    fn notification_and_restore_fall_back_to_confirm_but_success_is_optional() {
         let root = tempfile::tempdir().unwrap();
         let dir = root.path().join("custom");
         std::fs::create_dir_all(&dir).unwrap();
         let confirm = wav(&[(880., 100.)], 0.8, &classic());
         std::fs::write(dir.join("confirm.wav"), &confirm).unwrap();
         let sounds = load_style(Some(root.path()), "custom");
-        assert_eq!(sample_for(&sounds, Sound::Launch).unwrap().samples, sample_for(&sounds, Sound::Confirm).unwrap().samples);
+        for sound in [Sound::Launch, Sound::Notification, Sound::Restore] {
+            assert_eq!(sample_for(&sounds, sound).unwrap().samples, sample_for(&sounds, Sound::Confirm).unwrap().samples);
+        }
+        assert!(sample_for(&sounds, Sound::LaunchSuccess).is_none());
     }
 
     #[test]
@@ -682,9 +841,16 @@ mod tests {
         prepare_sound_folder(&root);
         let readme = root.join("README.txt");
         let text = std::fs::read_to_string(&readme).unwrap();
-        for file in ["move.wav", "confirm.wav", "back.wav", "tab.wav", "launch.wav"] {
+        for file in ["move", "confirm", "back", "tab", "launch", "notification", "restore", "launch_success"] {
             assert!(text.contains(file));
         }
+        for extension in [".wav", ".ogg", ".mp3", ".flac"] {
+            assert!(text.contains(extension));
+        }
+        assert!(text.contains("no fallback"));
+        std::fs::write(&readme, LEGACY_SOUND_README).unwrap();
+        prepare_sound_folder(&root);
+        assert!(std::fs::read_to_string(&readme).unwrap().contains("launch_success"));
         assert!(text.contains("5 seconds"));
         std::fs::write(&readme, "user notes").unwrap();
         prepare_sound_folder(&root);
@@ -712,7 +878,7 @@ mod tests {
         assert!(second > 1.);
 
         assert_eq!(pitch_for(Sound::Move, false, false, &mut last, &mut step, start + Duration::from_millis(120)), 1.);
-        for sound in [Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch] {
+        for sound in [Sound::Confirm, Sound::Back, Sound::Tab, Sound::Launch, Sound::Notification, Sound::Restore, Sound::LaunchSuccess] {
             assert_eq!(pitch_for(sound, true, false, &mut last, &mut step, start + Duration::from_millis(150)), 1.);
         }
         assert_eq!(pitch_for(Sound::Move, true, true, &mut last, &mut step, start + Duration::from_millis(180)), 1.);
@@ -721,14 +887,17 @@ mod tests {
     #[test]
     fn settings_clamp_volume_and_scale_gain() {
         let mut controls = ControlOptions::default();
-        assert_eq!(Settings::of(&controls), Settings { style: "soft".into(), volume: 100, dynamic_pitch: true });
+        assert_eq!(
+            Settings::of(&controls, String::new()),
+            Settings { style: "soft".into(), volume: 100, dynamic_pitch: true, output_device: String::new() }
+        );
         controls.sound_volume = 0;
-        assert_eq!(Settings::of(&controls).volume, SOUND_VOLUME.0);
+        assert_eq!(Settings::of(&controls, String::new()).volume, SOUND_VOLUME.0);
         controls.sound_volume = 250;
-        assert_eq!(Settings::of(&controls).volume, SOUND_VOLUME.1);
+        assert_eq!(Settings::of(&controls, String::new()).volume, SOUND_VOLUME.1);
         assert!(
-            Settings { style: "soft".into(), volume: 50, dynamic_pitch: true }.gain()
-                < Settings { style: "soft".into(), volume: 100, dynamic_pitch: true }.gain()
+            Settings { style: "soft".into(), volume: 50, dynamic_pitch: true, output_device: String::new() }.gain()
+                < Settings { style: "soft".into(), volume: 100, dynamic_pitch: true, output_device: String::new() }.gain()
         );
     }
 
@@ -740,5 +909,6 @@ mod tests {
         assert_eq!(for_pad(Pad::RB), Some(Sound::Tab));
         assert_eq!(for_pad(Pad::ScrollDown), None);
         assert_eq!(Sound::Launch.name(), "launch");
+        assert_eq!(Sound::LaunchSuccess.name(), "launch_success");
     }
 }

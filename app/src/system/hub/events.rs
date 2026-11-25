@@ -1,6 +1,7 @@
 //! Launch events from the runtime, tray commands and second-invocation requests.
 
 use gpui_kit::*;
+use heronite_data::paths::AppPaths;
 use heronite_i18n::tr;
 use heronite_launch::LaunchEvent;
 
@@ -55,6 +56,13 @@ pub(super) fn on_event(cx: &mut App, ev: LaunchEvent) {
         }
         (started, ended, s.settings())
     };
+    if started {
+        let paths = AppPaths::for_data(&hub.0.borrow().data_paths);
+        let prefs = crate::console::themes::prefs(&paths);
+        if prefs.theme.controls.sounds {
+            crate::console::sound::launch_success(crate::console::sound::Settings::of(&prefs.theme.controls, prefs.audio_output_device));
+        }
+    }
     // Before the post-game work, which takes the session (and its title) away.
     if !has_window(cx) {
         notify_without_window(cx, &ev);
@@ -135,6 +143,11 @@ fn restore_after_game(cx: &mut App, restore: bool) {
         }
     }
     log::info!("game ended: opening the window again");
+    let paths = AppPaths::for_data(&hub.0.borrow().data_paths);
+    let prefs = crate::console::themes::prefs(&paths);
+    if prefs.theme.controls.sounds {
+        crate::console::sound::restore(crate::console::sound::Settings::of(&prefs.theme.controls, prefs.audio_output_device));
+    }
     show_window(cx);
 }
 

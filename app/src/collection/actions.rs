@@ -152,6 +152,10 @@ impl CollectionView {
         shown: std::time::Duration,
         cx: &mut Context<Self>,
     ) {
+        let prefs = crate::console::themes::prefs(&self.app_paths);
+        if prefs.theme.controls.sounds {
+            crate::console::sound::notification(crate::console::sound::Settings::of(&prefs.theme.controls, prefs.audio_output_device));
+        }
         self.toast_action = None;
         self.toast = Some((text.into(), error));
         self.toast_task = Some(cx.spawn(async move |this, cx| {

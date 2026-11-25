@@ -65,6 +65,7 @@ fn startup_options_live_in_the_prefs_not_the_theme() {
 fn sound_style_and_dynamic_pitch_are_console_settings() {
     let mut p = ConsolePrefs::default();
     let rows = rows_of(&p, Card::Controls);
+    assert!(rows.iter().any(|row| row.id == "controls.audio_output_device"));
     let style = rows.iter().position(|row| row.id == "controls.sound_style").unwrap();
     let pitch = rows.iter().position(|row| row.id == "controls.dynamic_pitch").unwrap();
     assert_eq!(pitch, style + 1);
@@ -74,6 +75,14 @@ fn sound_style_and_dynamic_pitch_are_console_settings() {
     assert!(change(&mut p, "controls.sound_style", choice(1)));
     assert_eq!(p.theme.controls.sound_style, "classic");
     assert!(!change(&mut p, "controls.sound_style", choice(1)), "same style changes nothing");
+}
+
+#[test]
+fn audio_output_device_is_a_machine_preference_with_system_default_fallback() {
+    let mut p = ConsolePrefs::default();
+    p.audio_output_device = "Disconnected HDMI".into();
+    assert!(change(&mut p, "controls.audio_output_device", choice(0)));
+    assert!(p.audio_output_device.is_empty());
 }
 
 #[test]
