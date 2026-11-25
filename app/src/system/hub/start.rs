@@ -34,6 +34,7 @@ pub fn init(
 ) {
     let data_paths = DataPaths::detect();
     let settings = SysSettings::load(&data_paths);
+    crate::console::sound::start_output_device_scan();
     // The tray needs the saved theme even when startup opens no window.
     crate::theme::set_appearance(heronite_data::appearance::Appearance::load(&heronite_data::AppPaths::for_data(&data_paths)));
     // Every window opens at the interface scale.

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::{BufReader, Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
@@ -454,16 +454,43 @@ struct Request {
     replaces_press: bool,
 }
 
-/// Names of currently enumerated output devices, for the settings picker.
-pub fn available_output_devices() -> Vec<String> {
+static OUTPUT_DEVICE_NAMES: OnceLock<Arc<RwLock<Vec<String>>>> = OnceLock::new();
+
+fn output_device_names() -> Arc<RwLock<Vec<String>>> {
+    OUTPUT_DEVICE_NAMES
+        .get_or_init(|| {
+            let names = Arc::new(RwLock::new(Vec::new()));
+            let worker_names = names.clone();
+            if let Err(e) = std::thread::Builder::new().name("audio-devices".into()).spawn(move || loop {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(scan_output_devices));
+                match result {
+                    Ok(Ok(found)) => {
+                        if let Ok(mut current) = worker_names.write() {
+                            *current = found;
+                        } else {
+                            log::warn!("console sounds: output device cache lock was poisoned");
+                        }
+                    }
+                    Ok(Err(e)) => log::warn!("console sounds: cannot enumerate output devices: {e}"),
+                    Err(_) => log::warn!("console sounds: output device enumeration panicked; will retry"),
+                }
+                std::thread::sleep(Duration::from_secs(10));
+            }) {
+                log::warn!("console sounds: could not start output device scanner: {e}");
+            }
+            names
+        })
+        .clone()
+}
+
+/// Starts the device-list worker without waiting for its first scan.
+pub fn start_output_device_scan() {
+    let _ = output_device_names();
+}
+
+fn scan_output_devices() -> Result<Vec<String>> {
     let host = rodio::cpal::default_host();
-    let devices = match host.output_devices() {
-        Ok(devices) => devices,
-        Err(e) => {
-            log::warn!("console sounds: cannot enumerate output devices: {e}");
-            return Vec::new();
-        }
-    };
+    let devices = host.output_devices()?;
     let mut names = Vec::new();
     for device in devices {
         match device.name() {
@@ -473,7 +500,25 @@ pub fn available_output_devices() -> Vec<String> {
         }
     }
     names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-    names
+    Ok(names)
+}
+
+/// Returns the last asynchronously scanned device list without touching CPAL.
+pub fn available_output_devices() -> Vec<String> {
+    output_device_names().read().map(|names| names.clone()).unwrap_or_else(|_| {
+        log::warn!("console sounds: output device cache lock was poisoned");
+        Vec::new()
+    })
+}
+
+fn default_output_name() -> String {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        rodio::cpal::default_host().default_output_device().and_then(|device| device.name().ok()).unwrap_or_default()
+    }))
+    .unwrap_or_else(|_| {
+        log::warn!("console sounds: default output device query panicked");
+        String::new()
+    })
 }
 
 const OUTPUT_RETRY: Duration = Duration::from_secs(2);
@@ -489,6 +534,11 @@ struct AudioOutput {
 }
 
 fn open_output(selected_device: &str) -> Result<AudioOutput> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| open_output_inner(selected_device)))
+        .unwrap_or_else(|_| Err(anyhow!("audio output initialization panicked")))
+}
+
+fn open_output_inner(selected_device: &str) -> Result<AudioOutput> {
     let host = rodio::cpal::default_host();
     let default_device = host.default_output_device().and_then(|device| device.name().ok()).unwrap_or_default();
     if !selected_device.is_empty() {
@@ -659,8 +709,7 @@ fn play_requests(
             selected_device.clone_from(&request.settings.output_device);
         }
         if Instant::now() >= next_device_poll {
-            let host = rodio::cpal::default_host();
-            default_device = host.default_output_device().and_then(|device| device.name().ok()).unwrap_or_default();
+            default_device = default_output_name();
             next_device_poll = Instant::now() + DEVICE_POLL;
         }
         let default_changed = output.as_ref().is_some_and(|current| current.default_device != default_device);
