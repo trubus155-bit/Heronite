@@ -3842,6 +3842,7 @@ name = "heronite-i18n"
 version = "1.8.0"
 dependencies = [
  "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

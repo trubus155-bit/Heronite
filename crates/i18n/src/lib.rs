@@ -144,7 +144,30 @@ impl Preference {
 
 /// The language of the session (English when it is not one we have).
 pub fn system_lang() -> Lang {
+    #[cfg(windows)]
+    if let Some(lang) = windows_ui_lang() {
+        return lang;
+    }
+
     lang_from_env(|k| std::env::var(k).ok())
+}
+
+#[cfg(windows)]
+fn windows_ui_lang() -> Option<Lang> {
+    let lang_id = unsafe { windows_sys::Win32::Globalization::GetUserDefaultUILanguage() };
+    lang_from_windows_ui_language(lang_id)
+}
+
+fn lang_from_windows_ui_language(lang_id: u16) -> Option<Lang> {
+    match lang_id & 0x03ff {
+        0x0007 => Some(Lang::De),
+        0x0009 => Some(Lang::En),
+        0x000a => Some(Lang::Es),
+        0x000c => Some(Lang::Fr),
+        0x0016 => Some(Lang::PtBr),
+        0x0021 => Some(Lang::Id),
+        _ => None,
+    }
 }
 
 /// gettext's order: `LANGUAGE` (a `:` list, the first language we have wins)
@@ -506,6 +529,14 @@ mod tests {
     fn system_locale_uses_indonesian_and_falls_back_to_english() {
         assert_eq!(lang_from_env(|key| (key == "LANG").then(|| "id-ID".to_owned())), Lang::Id);
         assert_eq!(lang_from_env(|key| (key == "LANG").then(|| "ja_JP".to_owned())), Lang::En);
+    }
+
+    #[test]
+    fn windows_ui_language_ids_map_to_supported_languages() {
+        assert_eq!(lang_from_windows_ui_language(0x0421), Some(Lang::Id));
+        assert_eq!(lang_from_windows_ui_language(0x0409), Some(Lang::En));
+        assert_eq!(lang_from_windows_ui_language(0x0416), Some(Lang::PtBr));
+        assert_eq!(lang_from_windows_ui_language(0x0411), None);
     }
 
     #[test]
