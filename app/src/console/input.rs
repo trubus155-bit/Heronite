@@ -463,6 +463,12 @@ pub fn start_buttons() -> Option<(PadThread, UnboundedReceiver<PadMsg>)> {
     Some((PadThread { _source: source }, rx))
 }
 
+/// Reopens SDL's gamepad subsystem and enumerates connected devices again.
+#[cfg(windows)]
+pub fn reinitialize() {
+    backend::reinitialize();
+}
+
 /// Keyboard equivalents in console mode: arrows, Enter/Space (A), Escape /
 /// Backspace (B), X, Y, Q / E (LB / RB), Page Up / Down (scroll), M or F1
 /// (Start, the menu), Tab (Select).

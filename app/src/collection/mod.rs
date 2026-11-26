@@ -299,6 +299,17 @@ pub struct CollectionView {
 }
 
 impl CollectionView {
+    pub(crate) fn startup_modal_open(&self, cx: &App) -> bool {
+        self.modal_open(cx)
+    }
+
+    pub(crate) fn focus_after_startup(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        window.activate_window();
+        window.focus(&self.focus_handle, cx);
+    }
+}
+
+impl CollectionView {
     pub fn new(started: Instant, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let list_state = ListState::new(0, ListAlignment::Top, px(500.));
         let weak = cx.entity().downgrade();

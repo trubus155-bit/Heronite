@@ -399,6 +399,47 @@ pub fn console_in_front(cx: &mut App) -> bool {
     handle.is_some_and(|h| cx.active_window().is_some_and(|active| active == h))
 }
 
+/// Re-enumerates gamepads and restores focus during the two startup checks.
+#[cfg(windows)]
+pub(super) fn recover_startup(cx: &mut App) -> bool {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+    let Some((handle, view)) = cx.try_global::<Hub>().and_then(|h| h.0.borrow().window.as_ref().map(|w| (w.handle, w.view.clone()))) else {
+        crate::console::input::reinitialize();
+        return true;
+    };
+    let modal = view.update(cx, |v, cx| v.startup_modal_open(cx)).unwrap_or(true);
+    if modal {
+        return true;
+    }
+
+    crate::console::input::reinitialize();
+    let result = handle.update(cx, |_, window, cx| {
+        view.update(cx, |v, cx| {
+            if v.startup_modal_open(cx) {
+                return false;
+            }
+            v.focus_after_startup(window, cx);
+            if let Ok(RawWindowHandle::Win32(raw)) = window.window_handle().map(|h| h.as_raw()) {
+                let hwnd = std::num::NonZeroIsize::new(raw.hwnd.get() as isize);
+                if let Some(hwnd) = hwnd {
+                    match heronite_platform::overlay_window::take_foreground(hwnd) {
+                        Ok(true) => {}
+                        Ok(false) => log::info!("startup recovery: Windows kept the foreground elsewhere"),
+                        Err(e) => log::warn!("startup recovery: could not take the foreground: {e}"),
+                    }
+                }
+            }
+            true
+        })
+        .unwrap_or(false)
+    });
+    if let Err(e) = result {
+        log::debug!("startup recovery: the main window is no longer available: {e}");
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     // Not `super::*`: GPUI's own `test` macro would shadow `#[test]`.

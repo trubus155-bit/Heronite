@@ -106,6 +106,9 @@ struct State {
     /// The main window's placement, written so the next window opens as this
     /// one was left.
     placement: window::PlacementSave,
+    #[cfg(windows)]
+    /// The two startup input/focus recovery checks.
+    startup_recovery: Option<Task<()>>,
 }
 
 impl State {

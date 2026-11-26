@@ -52,6 +52,7 @@ pub fn init(
     let runtime = Arc::new(runtime);
     let adopting = runtime.clone();
     let summoning = runtime.clone();
+    let launch_requested_at_start = cli.launch.is_some();
     // Post-game work (backup, capture session) runs here, with or without a window.
     crate::services::session::init(cx, data_paths.clone(), runtime.clone());
     crate::overlay::init(cx, data_paths.clone(), runtime.clone());
@@ -103,8 +104,32 @@ pub fn init(
         settings,
         settings_stamp: data_paths.global_config().metadata().and_then(|m| m.modified()).ok(),
         placement: Default::default(),
+        #[cfg(windows)]
+        startup_recovery: None,
     }))));
     STARTED.with(|s| s.set(Some(started)));
+
+    #[cfg(windows)]
+    if !launch_requested_at_start {
+        let task = cx.spawn(async move |cx| {
+            for delay in STARTUP_RECOVERY_SHOTS {
+                let deadline = started + delay;
+                cx.background_executor().timer(deadline.saturating_duration_since(Instant::now())).await;
+                let keep_going = cx.update(|cx| {
+                    let hub = hub(cx);
+                    if !hub.0.borrow().running.is_empty() {
+                        return false;
+                    }
+                    super::window::recover_startup(cx)
+                });
+                if !keep_going {
+                    break;
+                }
+            }
+            cx.update(|cx| hub(cx).0.borrow_mut().startup_recovery = None);
+        });
+        hub(cx).0.borrow_mut().startup_recovery = Some(task);
+    }
 
     cx.spawn(async move |cx| {
         let mut events = events;
@@ -205,6 +230,9 @@ pub fn init(
     }
     debug_hooks(cx, tray_tx);
 }
+
+#[cfg(windows)]
+const STARTUP_RECOVERY_SHOTS: [std::time::Duration; 2] = [std::time::Duration::from_secs(5), std::time::Duration::from_secs(10)];
 
 thread_local! {
     pub(super) static STARTED: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };

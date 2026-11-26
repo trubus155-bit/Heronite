@@ -24,6 +24,10 @@ pub(super) fn on_event(cx: &mut App, ev: LaunchEvent) {
         match &ev {
             LaunchEvent::Launching { app_name } => {
                 s.running.entry(app_name.clone()).or_insert(None);
+                #[cfg(windows)]
+                {
+                    s.startup_recovery = None;
+                }
             }
             LaunchEvent::Preparing { app_name, message, cancellable } => {
                 s.steps.insert(app_name.clone(), (message.clone(), *cancellable));

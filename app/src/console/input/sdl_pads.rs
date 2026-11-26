@@ -39,6 +39,8 @@ struct Hub {
     /// Wakes the thread when a listener comes or goes.
     changed: Condvar,
     next_id: AtomicU64,
+    /// Incremented to reopen SDL and re-enumerate its gamepads.
+    reinitialize: AtomicU64,
 }
 
 impl Hub {
@@ -46,6 +48,8 @@ impl Hub {
         self.listeners.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
+
+static HUB: Mutex<Option<Arc<Hub>>> = Mutex::new(None);
 
 /// A listener; dropping it unsubscribes (its receiver then ends).
 pub(super) struct Source {
@@ -63,7 +67,6 @@ impl Drop for Source {
 /// The hub, with its thread started on first use (`None` if it could not
 /// be; the next call tries again).
 fn hub() -> Option<Arc<Hub>> {
-    static HUB: Mutex<Option<Arc<Hub>>> = Mutex::new(None);
     let mut slot = HUB.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(hub) = &*slot {
         return Some(hub.clone());
@@ -73,6 +76,14 @@ fn hub() -> Option<Arc<Hub>> {
     std::thread::Builder::new().name("gamepad".into()).spawn(move || run(&worker)).map_err(|e| log::warn!("gamepad thread: {e}")).ok()?;
     *slot = Some(hub.clone());
     Some(hub)
+}
+
+pub(super) fn reinitialize() {
+    let slot = HUB.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(hub) = slot.as_ref() {
+        hub.reinitialize.fetch_add(1, Ordering::Release);
+        hub.changed.notify_all();
+    }
 }
 
 pub(super) fn start(tr: Translator) -> Option<(Source, UnboundedReceiver<PadMsg>)> {
@@ -87,6 +98,7 @@ pub(super) fn start(tr: Translator) -> Option<(Source, UnboundedReceiver<PadMsg>
 fn run(hub: &Hub) {
     // With when it was opened.
     let mut sdl: Option<(Controllers, Instant)> = None;
+    let mut reinitialized = hub.reinitialize.load(Ordering::Acquire);
     loop {
         // Nobody listens: let go of the controllers and sleep until someone does.
         {
@@ -103,6 +115,20 @@ fn run(hub: &Hub) {
                     listeners = hub.changed.wait(listeners).unwrap_or_else(|e| e.into_inner());
                 }
             }
+        }
+        let requested = hub.reinitialize.load(Ordering::Acquire);
+        if requested != reinitialized {
+            reinitialized = requested;
+            drop(sdl.take());
+            let now = Instant::now();
+            let mut listeners = hub.lock();
+            listeners.retain_mut(|l| {
+                let alive =
+                    l.tr.event(RawEvent::Disconnected { remaining: None }, now, super::swap_ab())
+                        .is_none_or(|m| l.tx.unbounded_send(m).is_ok());
+                l.greeted = false;
+                alive
+            });
         }
         if sdl.is_none() {
             match Controllers::open() {
