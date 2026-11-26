@@ -112,20 +112,13 @@ pub fn init(
     #[cfg(windows)]
     if !launch_requested_at_start {
         let task = cx.spawn(async move |cx| {
-            for delay in STARTUP_RECOVERY_SHOTS {
-                let deadline = started + delay;
-                cx.background_executor().timer(deadline.saturating_duration_since(Instant::now())).await;
-                let keep_going = cx.update(|cx| {
-                    let hub = hub(cx);
-                    if !hub.0.borrow().running.is_empty() {
-                        return false;
-                    }
-                    super::window::recover_startup(cx)
-                });
-                if !keep_going {
-                    break;
+            let deadline = started + STARTUP_RECOVERY_AFTER;
+            cx.background_executor().timer(deadline.saturating_duration_since(Instant::now())).await;
+            cx.update(|cx| {
+                if hub(cx).0.borrow().running.is_empty() {
+                    super::window::recover_startup(cx);
                 }
-            }
+            });
             cx.update(|cx| hub(cx).0.borrow_mut().startup_recovery = None);
         });
         hub(cx).0.borrow_mut().startup_recovery = Some(task);
@@ -232,7 +225,7 @@ pub fn init(
 }
 
 #[cfg(windows)]
-const STARTUP_RECOVERY_SHOTS: [std::time::Duration; 2] = [std::time::Duration::from_secs(5), std::time::Duration::from_secs(10)];
+const STARTUP_RECOVERY_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
 
 thread_local! {
     pub(super) static STARTED: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };

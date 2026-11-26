@@ -401,16 +401,16 @@ pub fn console_in_front(cx: &mut App) -> bool {
 
 /// Re-enumerates gamepads and restores focus during the two startup checks.
 #[cfg(windows)]
-pub(super) fn recover_startup(cx: &mut App) -> bool {
+pub(super) fn recover_startup(cx: &mut App) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
     let Some((handle, view)) = cx.try_global::<Hub>().and_then(|h| h.0.borrow().window.as_ref().map(|w| (w.handle, w.view.clone()))) else {
         crate::console::input::reinitialize();
-        return true;
+        return;
     };
     let modal = view.update(cx, |v, cx| v.startup_modal_open(cx)).unwrap_or(true);
     if modal {
-        return true;
+        return;
     }
 
     crate::console::input::reinitialize();
@@ -437,7 +437,6 @@ pub(super) fn recover_startup(cx: &mut App) -> bool {
     if let Err(e) = result {
         log::debug!("startup recovery: the main window is no longer available: {e}");
     }
-    true
 }
 
 #[cfg(test)]
