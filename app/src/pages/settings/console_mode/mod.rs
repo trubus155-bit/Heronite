@@ -225,7 +225,7 @@ pub(super) fn hidden(d: &mut SettingsPage, window: &mut Window) {
     }
 }
 
-/// The statuses, categories (both kinds), platforms, stores and genres of the library.
+/// The statuses, categories (both kinds), stores, platforms and metadata facets of the library.
 fn facts_of(paths: &DataPaths) -> Facts {
     let Ok(lib) = Library::load(paths) else { return Facts::default() };
     let extras = crate::collection::organize::system_extras(&lib);

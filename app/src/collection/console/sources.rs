@@ -168,6 +168,10 @@ impl CollectionView {
             "smart" => self.in_smart(value, g),
             "store" => g.source_label == value,
             "platform" => self.organize().platform(g) == value,
+            "metadata-platform" => facet_has(&g.facets, heronite_data::FacetKind::Platform, value),
+            "genre" => facet_has(&g.facets, heronite_data::FacetKind::Genre, value),
+            "game-mode" => facet_has(&g.facets, heronite_data::FacetKind::GameMode, value),
+            "tag" => facet_has(&g.facets, heronite_data::FacetKind::Tag, value),
             _ => true,
         }
     }
@@ -300,6 +304,32 @@ impl CollectionView {
     }
 }
 
+fn facet_has(facets: &heronite_data::collection::GameFacets, kind: heronite_data::FacetKind, value: &str) -> bool {
+    let wanted = heronite_data::text::facet_key(value);
+    facets[kind.index()].iter().any(|item| item.key == wanted)
+}
+
 fn fxhash(s: &str) -> u64 {
     s.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::facet_has;
+    use heronite_data::{collection::FacetItem, FacetKind};
+
+    #[test]
+    fn metadata_sources_match_their_facet_without_case_sensitivity() {
+        let mut facets: heronite_data::collection::GameFacets = std::array::from_fn(|_| Vec::new());
+        facets[FacetKind::Platform.index()].push(FacetItem { value: "Nintendo Switch".into(), key: "nintendo switch".into() });
+        facets[FacetKind::Genre.index()].push(FacetItem { value: "Action".into(), key: "action".into() });
+        facets[FacetKind::GameMode.index()].push(FacetItem { value: "Co-operative".into(), key: "co-operative".into() });
+        facets[FacetKind::Tag.index()].push(FacetItem { value: "Roguelike".into(), key: "roguelike".into() });
+
+        assert!(facet_has(&facets, FacetKind::Platform, "NINTENDO SWITCH"));
+        assert!(facet_has(&facets, FacetKind::Genre, "action"));
+        assert!(facet_has(&facets, FacetKind::GameMode, "CO-OPERATIVE"));
+        assert!(facet_has(&facets, FacetKind::Tag, "roguelike"));
+        assert!(!facet_has(&facets, FacetKind::Platform, "PC"));
+    }
 }

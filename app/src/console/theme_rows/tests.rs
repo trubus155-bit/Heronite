@@ -10,8 +10,11 @@ fn data() -> Data {
             categories: vec!["Co-op".into()],
             smart: vec![("g1".into(), "Unplayed".into())],
             platforms: vec!["PC".into(), "PlayStation 2".into()],
+            metadata_platforms: vec!["Nintendo Switch".into()],
             stores: vec!["Steam".into()],
             genres: vec!["Adventure".into()],
+            game_modes: vec!["Co-operative".into()],
+            tags: vec!["Action Roguelike".into()],
         },
         saved: Vec::new(),
     }
@@ -145,6 +148,19 @@ fn a_tab_source_comes_from_the_library() {
     change(&mut p, "tab.0.source", choice(at));
     assert_eq!(p.theme.tabs[0].source, "status:playing");
     assert!(options.iter().any(|(v, _)| v == "category:Co-op" && v != "all"));
+    for (source, label) in [
+        ("metadata-platform:Nintendo Switch", "Metadata platform: Nintendo Switch"),
+        ("genre:Adventure", "Genre: Adventure"),
+        ("game-mode:Co-operative", "Game mode: Co-operative"),
+        ("tag:Action Roguelike", "Tag: Action Roguelike"),
+    ] {
+        assert!(options.iter().any(|(key, name)| key == source && name == label), "{source}");
+        let at = options.iter().position(|(key, _)| key == source).unwrap();
+        assert!(change(&mut p, "tab.0.source", choice(at)));
+        assert_eq!(p.theme.tabs[0].source, source);
+        let saved = serde_json::to_value(&p.theme).unwrap();
+        assert_eq!(saved["tabs"][0]["source"], source);
+    }
     let odd = source_options(&data().facts, "store:Itch");
     assert_eq!(odd.last().unwrap().0, "store:Itch", "an unknown source is kept");
 }

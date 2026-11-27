@@ -52,21 +52,22 @@ pub struct Facts {
     /// The smart categories, `(id, name)`, in their order.
     pub smart: Vec<(String, String)>,
     pub platforms: Vec<String>,
+    pub metadata_platforms: Vec<String>,
     pub stores: Vec<String>,
     pub genres: Vec<String>,
+    pub game_modes: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 impl Facts {
     /// `platform` gives the platform a game is shown under.
     pub fn build(lib: &Library, categories: &Categories, smart: &SmartGroups, platform: impl Fn(&CollectionGame) -> String) -> Self {
-        let (mut stores, mut platforms, mut genres) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
+        let (mut stores, mut platforms) = (BTreeSet::new(), BTreeSet::new());
         for g in &lib.games {
             stores.insert(g.source_label.to_string());
             platforms.insert(platform(g));
-            if let Some(m) = &g.metadata {
-                genres.extend(m.genres.iter().filter(|x| !x.trim().is_empty()).cloned());
-            }
         }
+        let facets = heronite_data::collection::collect_facet_options(&lib.games);
         let statuses = lib
             .statuses
             .iter()
@@ -80,8 +81,11 @@ impl Facts {
             categories: categories.names().map(str::to_owned).collect(),
             smart: smart.groups.iter().map(|g| (g.id.clone(), g.name.clone())).collect(),
             platforms: platforms.into_iter().collect(),
+            metadata_platforms: facets.get(heronite_data::FacetKind::Platform).iter().map(|o| o.value.clone()).collect(),
             stores: stores.into_iter().collect(),
-            genres: genres.into_iter().collect(),
+            genres: facets.get(heronite_data::FacetKind::Genre).iter().map(|o| o.value.clone()).collect(),
+            game_modes: facets.get(heronite_data::FacetKind::GameMode).iter().map(|o| o.value.clone()).collect(),
+            tags: facets.get(heronite_data::FacetKind::Tag).iter().map(|o| o.value.clone()).collect(),
         }
     }
 
@@ -357,8 +361,9 @@ fn tab_rows(cx: &Ctx) -> Vec<Row> {
 }
 
 /// What a tab can show, as `(source, label)`: the fixed choices, then the
-/// library's statuses, categories, stores and platforms; the current value
-/// is kept even when the library has no such thing now.
+/// library's statuses, categories, stores and platform values, including
+/// metadata platforms, genres, game modes and tags. The current value is
+/// kept even when the library has no such thing now.
 pub fn source_options(facts: &Facts, current: &str) -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = vec![
         ("all".into(), tr!("All games").into()),
@@ -373,6 +378,10 @@ pub fn source_options(facts: &Facts, current: &str) -> Vec<(String, String)> {
     v.extend(facts.smart.iter().map(|(id, n)| (format!("smart:{id}"), tr!("Category: {name}", name = n))));
     v.extend(facts.stores.iter().map(|s| (format!("store:{s}"), tr!("Store: {name}", name = s))));
     v.extend(facts.platforms.iter().map(|s| (format!("platform:{s}"), tr!("Platform: {name}", name = s))));
+    v.extend(facts.metadata_platforms.iter().map(|s| (format!("metadata-platform:{s}"), tr!("Metadata platform: {name}", name = s))));
+    v.extend(facts.genres.iter().map(|s| (format!("genre:{s}"), tr!("Genre: {name}", name = s))));
+    v.extend(facts.game_modes.iter().map(|s| (format!("game-mode:{s}"), tr!("Game mode: {name}", name = s))));
+    v.extend(facts.tags.iter().map(|s| (format!("tag:{s}"), tr!("Tag: {name}", name = s))));
     if !v.iter().any(|(k, _)| k == current) {
         v.push((current.to_string(), current.to_string()));
     }
