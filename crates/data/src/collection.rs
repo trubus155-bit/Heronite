@@ -518,14 +518,21 @@ pub fn runs_offline(game: &CollectionGame) -> bool {
 }
 
 /// Search of the Collection screen: every word of the query must match the
-/// title or the store's own title, ignoring case and accents, with the
-/// palette's tiers (exact, prefix, word start, inside a word, letters in
-/// order). `None` when it does not match; higher is better.
+/// title, the store's own title or a searchable metadata value, ignoring
+/// case and accents, with the palette's tiers (exact, prefix, word start,
+/// inside a word, letters in order). `None` when it does not match; higher
+/// is better.
 pub fn search_score(game: &CollectionGame, tokens: &[&str]) -> Option<i32> {
     let title = crate::fuzzy::fold(&game.title);
     let store_title = crate::fuzzy::fold(&game.game.title);
     let alt = if store_title == title { "" } else { store_title.as_str() };
-    crate::fuzzy::score_entry(tokens, &crate::fuzzy::Haystack { title: &title, alt, keywords: "" })
+    let keywords = [FacetKind::Platform, FacetKind::Genre, FacetKind::GameMode, FacetKind::Tag]
+        .into_iter()
+        .flat_map(|kind| game.facets[kind.index()].iter().map(|item| item.value.as_str()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let keywords = crate::fuzzy::fold(&keywords);
+    crate::fuzzy::score_entry(tokens, &crate::fuzzy::Haystack { title: &title, alt, keywords: &keywords })
 }
 
 /// Install filter + search + facets + the "only" switches, then sort
@@ -887,6 +894,33 @@ mod tests {
         );
         assert_eq!(options.genre.len(), 2);
         assert!(options.series.is_empty());
+    }
+
+    #[test]
+    fn search_matches_platform_genre_game_mode_and_tag_metadata() {
+        let mut game = (*g("metadata", "Untitled adventure", |_| {})).clone();
+        game.facets[FacetKind::Platform.index()] = items(vec!["Nintendo Switch".into()]);
+        game.facets[FacetKind::Genre.index()] = items(vec!["Role-playing".into()]);
+        game.facets[FacetKind::GameMode.index()] = items(vec!["Co-operative".into()]);
+        game.facets[FacetKind::Tag.index()] = items(vec!["Action Roguelike".into()]);
+        let games = vec![Arc::new(game)];
+        let matches = |query: &str| filter_games(&games, &ViewQuery { search: query.into(), ..Default::default() }).len() == 1;
+        assert!(matches("NINTENDO switch"));
+        assert!(matches("role-playing"));
+        assert!(matches("CO-OPERATIVE"));
+        assert!(matches("action roguelike"));
+        assert!(!matches("unlisted metadata"));
+        let options = collect_facet_options(&games);
+        for (kind, expected) in [
+            (FacetKind::Platform, "Nintendo Switch"),
+            (FacetKind::Genre, "Role-playing"),
+            (FacetKind::GameMode, "Co-operative"),
+            (FacetKind::Tag, "Action Roguelike"),
+        ] {
+            assert!(options.get(kind).iter().any(|option| option.value == expected), "{kind:?}");
+            let facets = FacetFilters::default().toggled(kind, expected);
+            assert_eq!(filter_games(&games, &ViewQuery { facets, ..Default::default() }).len(), 1, "{kind:?}");
+        }
     }
 
     #[test]

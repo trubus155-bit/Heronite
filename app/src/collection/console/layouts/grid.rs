@@ -8,7 +8,7 @@ use gpui_kit::prelude::*;
 use gpui_kit::*;
 use heronite_data::categories::{Categories, UNCATEGORIZED};
 use heronite_data::console_theme::{GridPanel, KeptFilters, TabSpec};
-use heronite_data::{CollectionGame, Library};
+use heronite_data::{CollectionGame, FacetKind, Library};
 use heronite_i18n::{n_, tr};
 
 use super::super::super::CollectionView;
@@ -23,6 +23,8 @@ use crate::console::motion::{self, Axis, Glide, Goal};
 use crate::console::{Btn, Hint, Pad};
 use crate::icons::Icon;
 use crate::theme;
+
+const CATEGORY_FACETS: [FacetKind; 4] = [FacetKind::Genre, FacetKind::Platform, FacetKind::GameMode, FacetKind::Tag];
 
 pub(crate) const GAP: f32 = 18.;
 pub(crate) const SIDE: f32 = 46.;
@@ -60,15 +62,20 @@ pub(crate) struct Filters {
     /// Index in [`category_options`].
     pub category: usize,
     /// 0 = any, else the smart category `group - 1` (`CollectionView::smart_groups`).
-    /// At most one of `category` and `group` is set: the Category chip and
-    /// row go through the manual choices, then the smart ones.
+    /// The selected manual-category choice, or 0 when a smart group or facet
+    /// is selected.
     pub group: usize,
+    /// One metadata facet selected through the Category chip or Filters row.
+    pub facet: Option<(FacetKind, String)>,
 }
 
 impl Filters {
-    /// Where the Category choice is among the `category_n` manual choices
-    /// ("any" included) followed by the smart categories.
-    pub(crate) fn category_pick(&self, category_n: usize) -> usize {
+    /// Where the Category choice is among manual choices, smart categories
+    /// and the available metadata values.
+    pub(crate) fn category_pick(&self, category_n: usize, group_n: usize, facets: &[(FacetKind, String)]) -> usize {
+        if let Some(selected) = &self.facet {
+            return facets.iter().position(|choice| choice == selected).map_or(0, |i| category_n + group_n + i);
+        }
         if self.group > 0 {
             category_n + self.group - 1
         } else {
@@ -77,11 +84,14 @@ impl Filters {
     }
 
     /// Sets the Category choice to `pick` (see [`category_pick`](Self::category_pick)).
-    pub(crate) fn set_category_pick(&mut self, pick: usize, category_n: usize) {
+    pub(crate) fn set_category_pick(&mut self, pick: usize, category_n: usize, group_n: usize, facets: &[(FacetKind, String)]) {
         if pick < category_n {
-            (self.category, self.group) = (pick, 0);
+            (self.category, self.group, self.facet) = (pick, 0, None);
+        } else if pick < category_n + group_n {
+            (self.category, self.group, self.facet) = (0, pick - category_n + 1, None);
         } else {
-            (self.category, self.group) = (0, pick - category_n + 1);
+            (self.category, self.group) = (0, 0);
+            self.facet = facets.get(pick - category_n - group_n).cloned();
         }
     }
 
@@ -101,7 +111,15 @@ impl Filters {
 impl Default for Filters {
     /// Every game, the one played last first.
     fn default() -> Self {
-        Self { show: 0, favourites: false, sort: heronite_data::console_theme::SORT_LAST_PLAYED, status: 0, category: 0, group: 0 }
+        Self {
+            show: 0,
+            favourites: false,
+            sort: heronite_data::console_theme::SORT_LAST_PLAYED,
+            status: 0,
+            category: 0,
+            group: 0,
+            facet: None,
+        }
     }
 }
 
@@ -124,6 +142,35 @@ pub(crate) fn category_options(cats: &Categories) -> Vec<Option<String>> {
     v
 }
 
+/// Available values for the metadata choices exposed in Console mode.
+pub(crate) fn metadata_filter_options(lib: &Library) -> Vec<(FacetKind, String)> {
+    let options = heronite_data::collection::collect_facet_options(&lib.games);
+    CATEGORY_FACETS.into_iter().flat_map(|kind| options.get(kind).iter().map(move |option| (kind, option.value.clone()))).collect()
+}
+
+fn facet_label(kind: FacetKind) -> &'static str {
+    match kind {
+        FacetKind::Genre => tr!("Genre"),
+        FacetKind::Platform => tr!("Platform"),
+        FacetKind::GameMode => tr!("Game mode"),
+        FacetKind::Tag => tr!("Steam tag"),
+        _ => tr!("Category"),
+    }
+}
+
+pub(crate) fn category_value(filters: &Filters, cats: &Categories, group: Option<&str>) -> String {
+    if let Some((kind, value)) = &filters.facet {
+        return format!("{}: {value}", facet_label(*kind));
+    }
+    if let Some(name) = group {
+        return name.to_string();
+    }
+    match category_options(cats).get(filters.category).cloned().flatten() {
+        Some(name) => category_label(&name),
+        None => tr!("Any category").to_string(),
+    }
+}
+
 pub(crate) fn status_options(lib: &Library) -> Vec<SharedString> {
     std::iter::once(SharedString::from(tr!("Any status")))
         .chain(lib.statuses.iter().map(|s| SharedString::from(heronite_data::status::status_label(&s.name).to_string())))
@@ -142,6 +189,7 @@ impl Nav {
             status: status.map_or(0, |i| i + 1),
             category: 0,
             group: 0,
+            facet: None,
         };
         self.index = 0;
         self.toolbar = None;
@@ -155,6 +203,7 @@ impl Nav {
         let tokens = heronite_data::fuzzy::tokens(&folded);
         let status = f.status.checked_sub(1).and_then(|i| lib.statuses.get(i)).map(|s| s.id.clone());
         let category: std::collections::BTreeSet<String> = category_options(cats).get(f.category).cloned().flatten().into_iter().collect();
+        let facets = f.facet.as_ref().map(|(kind, value)| heronite_data::collection::FacetFilters::default().toggled(*kind, value));
         let mut games: Vec<&CollectionGame> = games
             .iter()
             .map(|g| g.as_ref())
@@ -166,6 +215,7 @@ impl Nav {
             .filter(|g| !f.favourites || g.favourite)
             .filter(|g| status.as_ref().is_none_or(|s| &g.status_id == s))
             .filter(|g| cats.matches(&category, &g.runner, &g.app_name))
+            .filter(|g| facets.as_ref().is_none_or(|filters| heronite_data::collection::matches_facets(g, filters)))
             .collect();
         match f.sort {
             1 => games.sort_by(|a, b| b.last_played.cmp(&a.last_played).then_with(|| heronite_data::organize::title_order(a, b))),
@@ -186,11 +236,7 @@ impl Nav {
     fn chips(&self, lib: &Library, cats: &Categories, search: &str, group: Option<&str>) -> [(SharedString, SharedString); CHIPS] {
         let f = &self.filters;
         let status = status_options(lib);
-        let category = match (group, category_options(cats).get(f.category).cloned().flatten()) {
-            (Some(name), _) => name.to_string(),
-            (None, None) => tr!("Any category").to_string(),
-            (None, Some(name)) => category_label(&name),
-        };
+        let category = category_value(f, cats, group);
         let show = match (f.show, f.favourites) {
             (0, true) => tr!("Favourites").to_string(),
             (s, true) => format!("{} \u{b7} {}", heronite_i18n::tr(SHOW[s]), tr!("Favourites")),
@@ -531,7 +577,9 @@ impl CollectionView {
         let keys = self.grid_keys(tab, spec);
         let status_n = lib.statuses.len() + 1;
         let category_n = category_options(&self.categories).len();
-        let pick_n = category_n + self.smart_groups.groups.len();
+        let group_n = self.smart_groups.groups.len();
+        let metadata_options = metadata_filter_options(&lib);
+        let pick_n = category_n + group_n + metadata_options.len();
         let wrap = look::theme().nav.wrap;
         let by_letter = self.grid_letters(tab);
         let nav = &mut self.tab_nav(tab).grid;
@@ -551,7 +599,12 @@ impl CollectionView {
                         }
                         1 => f.sort = (f.sort + 1) % SORT.len(),
                         2 => f.status = (f.status + 1) % status_n,
-                        3 => f.set_category_pick((f.category_pick(category_n) + 1) % pick_n, category_n),
+                        3 => f.set_category_pick(
+                            (f.category_pick(category_n, group_n, &metadata_options) + 1) % pick_n,
+                            category_n,
+                            group_n,
+                            &metadata_options,
+                        ),
                         _ => {
                             self.console_search(window, cx);
                             return true;
@@ -564,7 +617,9 @@ impl CollectionView {
                         0 => (f.show, f.favourites) = (0, false),
                         1 => f.sort = 0,
                         2 => f.status = 0,
-                        3 => (f.category, f.group) = (0, 0),
+                        3 => {
+                            (f.category, f.group, f.facet) = (0, 0, None);
+                        }
                         _ => self.console.search.clear(),
                     }
                 }
@@ -660,7 +715,7 @@ mod tests {
     /// start from "any"; a value out of range reads as the first.
     #[test]
     fn kept_filters_round_trip() {
-        let f = Filters { show: 1, sort: 2, favourites: true, status: 3, category: 2, group: 0 };
+        let f = Filters { show: 1, sort: 2, favourites: true, status: 3, category: 2, group: 0, facet: None };
         // The carousel's part stays as it was.
         let mut k = KeptFilters { carousel: 2, ..KeptFilters::default() };
         f.keep_in(&mut k);
@@ -694,18 +749,23 @@ mod tests {
         assert_eq!(jump_letter(&[], 0, true), 0);
     }
 
-    /// The Category choice goes through "any", the manual categories and
-    /// "Uncategorized" (4 here), then the smart ones; only one kind is set.
+    /// The Category choice goes through manual categories, smart groups and
+    /// metadata values, keeping just the selected kind active.
     #[test]
-    fn the_category_choice_runs_through_manual_then_smart() {
+    fn the_category_choice_runs_through_categories_groups_and_metadata() {
+        let facets = [(FacetKind::Genre, "RPG".to_string()), (FacetKind::Platform, "PC".to_string())];
         let mut f = Filters { category: 2, ..Default::default() };
-        assert_eq!(f.category_pick(4), 2);
-        f.set_category_pick(4, 4);
+        assert_eq!(f.category_pick(4, 2, &facets), 2);
+        f.set_category_pick(4, 4, 2, &facets);
         assert_eq!((f.category, f.group), (0, 1), "the first smart category");
-        assert_eq!(f.category_pick(4), 4);
-        f.set_category_pick(5, 4);
+        assert_eq!(f.category_pick(4, 2, &facets), 4);
+        f.set_category_pick(5, 4, 2, &facets);
         assert_eq!((f.category, f.group), (0, 2));
-        f.set_category_pick(3, 4);
+        f.set_category_pick(6, 4, 2, &facets);
+        assert_eq!(f.facet, Some((FacetKind::Genre, "RPG".to_string())));
+        assert_eq!(f.category_pick(4, 2, &facets), 6);
+        f.set_category_pick(3, 4, 2, &facets);
         assert_eq!((f.category, f.group), (3, 0), "back to a manual one");
+        assert_eq!(f.facet, None);
     }
 }

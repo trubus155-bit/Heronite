@@ -18,7 +18,7 @@ use heronite_data::console_theme::{Layout, TabSpec};
 use heronite_i18n::{n_, tr};
 
 use super::super::CollectionView;
-use super::layouts::{self, category_options, status_options, Filters, SHOW};
+use super::layouts::{self, category_options, category_value, metadata_filter_options, status_options, Filters, SHOW};
 use crate::console::kit::{self, u};
 use crate::console::osk::{Osk, OskEvent};
 use crate::console::pointer::{self, Clickable};
@@ -101,7 +101,8 @@ impl CollectionView {
         if self.lib.as_ref().is_some_and(|l| !l.statuses.is_empty()) {
             v.push(Item::Status);
         }
-        if category_options(&self.categories).len() > 1 || !self.smart_groups.is_empty() {
+        let has_metadata = self.lib.as_ref().is_some_and(|lib| !metadata_filter_options(lib).is_empty());
+        if category_options(&self.categories).len() > 1 || !self.smart_groups.is_empty() || has_metadata {
             v.push(Item::Category);
         }
         v
@@ -131,7 +132,9 @@ impl CollectionView {
         }
         let status_n = self.lib.as_ref().map_or(0, |l| l.statuses.len()) + 1;
         let category_n = category_options(&self.categories).len();
-        let pick_n = category_n + self.smart_groups.groups.len();
+        let group_n = self.smart_groups.groups.len();
+        let metadata_options = self.lib.as_ref().map(|lib| metadata_filter_options(lib)).unwrap_or_default();
+        let pick_n = category_n + group_n + metadata_options.len();
         let (target, _) = self.filters_target();
         let before = (self.tab_nav(target).grid.filters.clone(), self.console.search.clone());
         if pad == Pad::X {
@@ -151,9 +154,9 @@ impl CollectionView {
             (Pad::Left | Pad::Right | Pad::A, Item::Sort) => turn(&mut f.sort, SORT.len()),
             (Pad::Left | Pad::Right | Pad::A, Item::Status) => turn(&mut f.status, status_n),
             (Pad::Left | Pad::Right | Pad::A, Item::Category) => {
-                let mut pick = f.category_pick(category_n);
+                let mut pick = f.category_pick(category_n, group_n, &metadata_options);
                 turn(&mut pick, pick_n);
-                f.set_category_pick(pick, category_n);
+                f.set_category_pick(pick, category_n, group_n, &metadata_options);
             }
             (Pad::Left | Pad::Right | Pad::A, Item::Favourites) => f.favourites = !f.favourites,
             _ => return true,
@@ -258,13 +261,12 @@ impl CollectionView {
         let sort: Vec<(SharedString, Option<usize>)> = SORT.iter().map(|l| (SharedString::from(heronite_i18n::tr(l)), None)).collect();
         let statuses = status_options(&lib);
         let categories = category_options(&self.categories);
-        let (pick, pick_n) = (f.category_pick(categories.len()), categories.len() + self.smart_groups.groups.len());
-        let category =
-            match (f.group.checked_sub(1).and_then(|i| self.smart_groups.groups.get(i)), categories.get(f.category).cloned().flatten()) {
-                (Some(g), _) => g.name.clone(),
-                (None, None) => tr!("Any category").to_string(),
-                (None, Some(name)) => crate::collection::view_filters::category_label(&name),
-            };
+        let metadata_options = metadata_filter_options(&lib);
+        let group_n = self.smart_groups.groups.len();
+        let (pick, pick_n) =
+            (f.category_pick(categories.len(), group_n, &metadata_options), categories.len() + group_n + metadata_options.len());
+        let group = f.group.checked_sub(1).and_then(|i| self.smart_groups.groups.get(i)).map(|g| g.name.as_str());
+        let category = category_value(&f, &self.categories, group);
         let row = |item: Item, label: String, ic: Icon, value: AnyElement| {
             let on = focus == item;
             kit::row_base(on)

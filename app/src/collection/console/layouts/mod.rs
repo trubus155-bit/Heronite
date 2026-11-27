@@ -24,7 +24,7 @@ use heronite_data::console_theme::{GridPanel, Hints, KeptFilters, Layout, TabSpe
 use heronite_data::CollectionGame;
 use heronite_i18n::tr;
 
-pub(super) use grid::{category_options, status_options, Filters, SHOW};
+pub(super) use grid::{category_options, category_value, metadata_filter_options, status_options, Filters, SHOW};
 pub(super) use spotlight::{Host as SpotHost, Nav as SpotNav};
 
 use super::super::CollectionView;
