@@ -1,4 +1,4 @@
-use heronite_data::console_theme::{presets, ConsolePrefs, Layout, MAX_TABS};
+use heronite_data::console_theme::{presets, ConsolePrefs, ConsoleTheme, Layout, TabSort, MAX_TABS};
 
 use super::*;
 use crate::console::Pad;
@@ -17,6 +17,7 @@ fn data() -> Data {
             tags: vec!["Action Roguelike".into()],
         },
         saved: Vec::new(),
+        active_tab: 0,
     }
 }
 
@@ -163,6 +164,53 @@ fn a_tab_source_comes_from_the_library() {
     }
     let odd = source_options(&data().facts, "store:Itch");
     assert_eq!(odd.last().unwrap().0, "store:Itch", "an unknown source is kept");
+}
+
+#[test]
+fn tab_sort_is_persistent_and_defaults_for_older_themes() {
+    let mut prefs = ConsolePrefs::default();
+    let rows = rows_of(&prefs, Card::Tabs);
+    let sort_row = rows.iter().find(|row| row.id == "tab.0.sort").unwrap();
+    assert_eq!(sort_row.label.as_ref(), tr!("Sort"));
+    let Value::Choice { options, index } = &sort_row.value else { panic!("tab sort is a choice") };
+    assert_eq!(*index, 0);
+    assert_eq!(
+        options.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
+        ["Default", "A–Z", "Z–A", "Last played", "Most played", "Release date"]
+    );
+
+    assert!(change(&mut prefs, "tab.0.sort", choice(TabSort::ALL.iter().position(|sort| *sort == TabSort::ReleaseDate).unwrap())));
+    assert_eq!(prefs.theme.tabs[0].sort, TabSort::ReleaseDate);
+    let saved = serde_json::to_value(&prefs.theme).unwrap();
+    assert_eq!(saved["tabs"][0]["sort"], "release-date");
+
+    let mut legacy = saved;
+    legacy["tabs"][0].as_object_mut().unwrap().remove("sort");
+    let restored: ConsoleTheme = serde_json::from_value(legacy).unwrap();
+    assert_eq!(restored.tabs[0].sort, TabSort::Default);
+}
+
+#[test]
+fn hero_controls_follow_the_active_layout_without_changing_saved_values() {
+    let mut prefs = ConsolePrefs::default();
+    prefs.theme.hero.title = heronite_data::console_theme::HeroTitle::Logo;
+    prefs.theme.hero.facts = false;
+    prefs.theme.hero.overview = false;
+    let mut ids = |layout| {
+        prefs.theme.tabs[0].layout = layout;
+        rows_of(&prefs, Card::Hero).into_iter().map(|row| row.id.to_string()).collect::<Vec<_>>()
+    };
+
+    assert!(ids(Layout::Dashboard).is_empty());
+    assert!(ids(Layout::Grid).is_empty());
+    for layout in [Layout::Carousel, Layout::Cinema, Layout::Xbox] {
+        assert_eq!(ids(layout), ["hero.title", "hero.facts"]);
+    }
+    assert_eq!(ids(Layout::Wheel), ["hero.title", "hero.facts", "hero.overview"]);
+    assert_eq!(ids(Layout::Spotlight), ["hero.title", "hero.facts", "hero.overview", "hero.size", "hero.fact_style"]);
+    assert_eq!(prefs.theme.hero.title, heronite_data::console_theme::HeroTitle::Logo);
+    assert!(!prefs.theme.hero.facts);
+    assert!(!prefs.theme.hero.overview);
 }
 
 #[test]

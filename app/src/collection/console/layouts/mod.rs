@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
-use heronite_data::console_theme::{GridPanel, Hints, KeptFilters, Layout, TabSpec};
+use heronite_data::console_theme::{GridPanel, Hints, KeptFilters, Layout, TabSort, TabSpec};
 use heronite_data::CollectionGame;
 use heronite_i18n::tr;
 
@@ -332,6 +332,14 @@ fn top_recent(games: &[Arc<CollectionGame>], k: usize) -> Vec<Arc<CollectionGame
     v.into_iter().cloned().collect()
 }
 
+pub(super) fn top_tab_games(games: &[Arc<CollectionGame>], spec: &TabSpec, k: usize) -> Vec<Arc<CollectionGame>> {
+    if spec.sort == TabSort::Default {
+        top_recent(games, k)
+    } else {
+        games.iter().take(k).cloned().collect()
+    }
+}
+
 /// A focused column in each of a layout's shelves (kept when moving
 /// between shelves) and the glide of each shelf, left and right.
 #[derive(Default)]
@@ -416,7 +424,7 @@ impl CollectionView {
         cx: &mut Context<Self>,
         nav: fn(&mut TabNav) -> &mut ShelfNav,
     ) -> bool {
-        let shelves = self.console_shelves(&spec.source);
+        let shelves = self.console_shelves_for_tab(spec);
         if shelves.is_empty() {
             return false;
         }

@@ -197,7 +197,14 @@ impl Nav {
     }
 
     /// The games the grid shows, in order (best search matches first).
-    fn keys(&self, games: &[std::sync::Arc<CollectionGame>], lib: &Library, cats: &Categories, search: &str) -> Vec<SharedString> {
+    fn keys(
+        &self,
+        games: &[std::sync::Arc<CollectionGame>],
+        lib: &Library,
+        cats: &Categories,
+        search: &str,
+        tab_sort: heronite_data::console_theme::TabSort,
+    ) -> Vec<SharedString> {
         let f = &self.filters;
         let folded = heronite_data::fuzzy::fold(search.trim());
         let tokens = heronite_data::fuzzy::tokens(&folded);
@@ -217,10 +224,13 @@ impl Nav {
             .filter(|g| cats.matches(&category, &g.runner, &g.app_name))
             .filter(|g| facets.as_ref().is_none_or(|filters| heronite_data::collection::matches_facets(g, filters)))
             .collect();
-        match f.sort {
-            1 => games.sort_by(|a, b| b.last_played.cmp(&a.last_played).then_with(|| heronite_data::organize::title_order(a, b))),
-            2 => games.sort_by(|a, b| b.playtime_minutes.cmp(&a.playtime_minutes).then_with(|| heronite_data::organize::title_order(a, b))),
-            _ => games.sort_by(|a, b| heronite_data::organize::title_order(a, b)),
+        if tab_sort == heronite_data::console_theme::TabSort::Default {
+            match f.sort {
+                1 => games.sort_by(|a, b| b.last_played.cmp(&a.last_played).then_with(|| heronite_data::organize::title_order(a, b))),
+                2 => games
+                    .sort_by(|a, b| b.playtime_minutes.cmp(&a.playtime_minutes).then_with(|| heronite_data::organize::title_order(a, b))),
+                _ => games.sort_by(|a, b| heronite_data::organize::title_order(a, b)),
+            }
         }
         if !tokens.is_empty() {
             // Same search as the desktop Collection; stable, so the sort orders ties.
@@ -331,7 +341,7 @@ impl CollectionView {
     /// The keys the Grid of a tab shows now (also for the layouts that reuse its filters).
     pub(crate) fn grid_keys(&mut self, tab: usize, spec: &TabSpec) -> Vec<SharedString> {
         let Some(lib) = self.lib.clone() else { return Vec::new() };
-        let mut games = self.console_games(&spec.source);
+        let mut games = self.console_games_for_tab(spec);
         let group = self.console.tab_navs.get(tab).map_or(0, |n| n.grid.filters.group);
         if let Some(group) = group.checked_sub(1).and_then(|i| self.smart_groups.groups.get(i)) {
             let facts = self.group_facts(&lib.statuses);
@@ -339,7 +349,7 @@ impl CollectionView {
         }
         let search = self.console.search.clone();
         let cats = std::mem::take(&mut self.categories);
-        let keys = self.tab_nav(tab).grid.keys(&games, &lib, &cats, &search);
+        let keys = self.tab_nav(tab).grid.keys(&games, &lib, &cats, &search, spec.sort);
         self.categories = cats;
         keys
     }

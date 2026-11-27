@@ -223,7 +223,7 @@ fn apply(prefs: &mut ConsolePrefs, cmd: &Command, data: &Data) {
         ("tab.add", Arg::Press) => {
             if t.tabs.len() < MAX_TABS {
                 let layout = first_unused_layout(&t.tabs);
-                t.tabs.push(TabSpec { name: tr(layout_name(layout)).to_string(), layout, source: "all".into() });
+                t.tabs.push(TabSpec { name: tr(layout_name(layout)).to_string(), layout, source: "all".into(), ..TabSpec::default() });
             }
         }
         ("interface.accent", Arg::Value(Value::Choice { index, .. })) => {
@@ -277,6 +277,12 @@ fn apply_indexed(prefs: &mut ConsolePrefs, cmd: &Command, data: &Data) {
         if let (Arg::Value(Value::Choice { index, .. }), Some(tab)) = (&cmd.arg, t.tabs.get_mut(i)) {
             if let Some((source, _)) = source_options(&data.facts, &tab.source).get(*index) {
                 tab.source = source.clone();
+            }
+        }
+    } else if let Some(i) = tab_index(id, ".sort") {
+        if let (Arg::Value(Value::Choice { index, .. }), Some(tab)) = (&cmd.arg, t.tabs.get_mut(i)) {
+            if let Some(sort) = TabSort::ALL.get(*index) {
+                tab.sort = *sort;
             }
         }
     } else if let Some(i) = tab_index(id, ".up") {

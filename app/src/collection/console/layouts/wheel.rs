@@ -4,16 +4,16 @@
 //! so a [`Glide`] moves them all smoothly. The games are the tab's as the
 //! Filters panel (Y) leaves them, as a grid's would be: Show, Favourites,
 //! Status, Category, the search and the sort; ◀ ▶ switch the chooser in the
-//! header over those (All games, each platform, Favourites). On the right:
+//! header over those (All games, Installed, Favourites and metadata facets). On the right:
 //! the focused game's art with its logo over it, its facts and overview.
 
 use std::collections::BTreeMap;
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
-use heronite_data::console_theme::{TabSpec, WheelItems};
+use heronite_data::console_theme::{HeroTitle, TabSpec, WheelItems};
 use heronite_data::organize::release_year;
-use heronite_data::CollectionGame;
+use heronite_data::{CollectionGame, FacetKind};
 use heronite_i18n::{tr, trn};
 
 use super::super::super::CollectionView;
@@ -71,21 +71,29 @@ impl Nav {
         self.index = 0;
         self.restart = true;
     }
+
+    pub(crate) fn reset_filter(&mut self) {
+        self.filter = 0;
+        self.index = 0;
+        self.restart = true;
+    }
 }
 
 #[derive(Clone, PartialEq)]
 enum Filter {
     All,
-    Platform(String),
+    Installed,
     Favourites,
+    Facet(FacetKind, String),
 }
 
 /// What the wheel shows now: the filters, the active one and its games.
 struct Data {
-    filters: Vec<(Filter, SharedString, usize)>,
+    filters: Vec<(Filter, SharedString)>,
     /// Index of the active filter.
     active: usize,
     keys: Vec<SharedString>,
+    count: usize,
 }
 
 /// Opacity of a row `d` rows from the centre.
@@ -98,40 +106,55 @@ fn bend(d: f32) -> f32 {
     d * d * 2.4
 }
 
-/// A game of the wheel, as its ‹ › chooser sees it.
+/// A game of the wheel, as its quick-filter chooser sees it.
 struct Entry {
     key: SharedString,
-    platform: String,
+    installed: bool,
     favourite: bool,
+    facets: Vec<(FacetKind, String)>,
 }
 
-/// The chooser over `games` (already through the Filters panel, in its
-/// order): All, each platform present (most games first; one that holds
-/// every game adds nothing) and Favourites; then the games of `want`.
+/// The chooser over the tab's filtered games: basic filters followed by the
+/// metadata values actually present in the filtered collection.
 fn wheel_pick(games: &[Entry], want: usize) -> Data {
-    let mut platforms: BTreeMap<&str, usize> = BTreeMap::new();
-    for g in games {
-        *platforms.entry(g.platform.as_str()).or_default() += 1;
+    let mut filters = vec![
+        (Filter::All, SharedString::from(tr!("All games"))),
+        (Filter::Installed, SharedString::from(tr!("Installed"))),
+        (Filter::Favourites, SharedString::from(tr!("Favourites"))),
+    ];
+    for kind in [FacetKind::Platform, FacetKind::Genre, FacetKind::GameMode, FacetKind::Tag] {
+        let mut values = BTreeMap::new();
+        for game in games {
+            for (facet, value) in &game.facets {
+                if *facet == kind {
+                    values.entry(value.as_str()).or_insert_with(|| value.clone());
+                }
+            }
+        }
+        let label = match kind {
+            FacetKind::Platform => tr!("Platform"),
+            FacetKind::Genre => tr!("Genre"),
+            FacetKind::GameMode => tr!("Game mode"),
+            FacetKind::Tag => tr!("Steam tag"),
+            _ => continue,
+        };
+        filters.extend(
+            values.into_values().map(|value| (Filter::Facet(kind, value.clone()), SharedString::from(format!("{label}: {value}")))),
+        );
     }
-    let mut platforms: Vec<(&str, usize)> = platforms.into_iter().filter(|(_, n)| *n < games.len()).collect();
-    platforms.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
-    let favourites = games.iter().filter(|g| g.favourite).count();
-    let mut filters = vec![(Filter::All, SharedString::from(tr!("All games")), games.len())];
-    filters.extend(platforms.into_iter().map(|(p, n)| (Filter::Platform(p.to_string()), SharedString::from(p.to_string()), n)));
-    if favourites > 0 && favourites < games.len() {
-        filters.push((Filter::Favourites, tr!("Favourites").into(), favourites));
-    }
-    let active = want.min(filters.len() - 1);
-    let keys = games
+    let active = want.min(filters.len().saturating_sub(1));
+    let keys: Vec<SharedString> = games
         .iter()
         .filter(|g| match &filters[active].0 {
             Filter::All => true,
-            Filter::Platform(p) => g.platform == *p,
+            Filter::Installed => g.installed,
             Filter::Favourites => g.favourite,
+            Filter::Facet(kind, value) => g.facets.iter().any(|(facet, item)| facet == kind && item == value),
         })
         .map(|g| g.key.clone())
         .collect();
-    Data { keys, filters, active }
+    let count = keys.len();
+    Data { keys, filters, active, count }
 }
 
 impl CollectionView {
@@ -142,32 +165,51 @@ impl CollectionView {
     fn wheel_data(&mut self, tab: usize, spec: &TabSpec, want: usize) -> Data {
         let keys = self.grid_keys(tab, spec);
         let Some(lib) = self.lib.clone() else { return wheel_pick(&[], want) };
-        let org = self.organize();
         let games: Vec<Entry> = keys
             .into_iter()
             .filter_map(|key| {
                 let g = lib.get(&key)?;
-                Some(Entry { platform: org.platform(g), favourite: g.favourite, key })
+                let facets = [FacetKind::Platform, FacetKind::Genre, FacetKind::GameMode, FacetKind::Tag]
+                    .into_iter()
+                    .flat_map(|kind| g.facets[kind.index()].iter().map(move |item| (kind, item.value.clone())))
+                    .collect();
+                Some(Entry { installed: g.installed, favourite: g.favourite, facets, key })
             })
             .collect();
         wheel_pick(&games, want)
-    }
-
-    /// The small tag at the end of a row: the emulated system, else the store.
-    fn wheel_tag(&self, g: &CollectionGame) -> String {
-        if self.game_extras.systems.contains_key(&g.key) {
-            self.organize().platform(g)
-        } else {
-            g.source_label.to_string()
-        }
     }
 
     pub(super) fn render_wheel(&mut self, tab: usize, spec: &TabSpec, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let want = self.tab_nav(tab).wheel.filter;
         let data = self.wheel_data(tab, spec, want);
         let n = data.keys.len();
+        let (_, label) = &data.filters[data.active];
+        let head = div()
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(u(12.))
+            .h(u(HEAD))
+            .px(u(SIDE))
+            .child(div().child(crate::ui::icon(Icon::ChevronLeft, u(22.), theme::text_muted())).on_pads([Pad::Left]))
+            .child(kit::title(label.clone(), 22.))
+            .child(div().child(crate::ui::icon(Icon::ChevronRight, u(22.), theme::text_muted())).on_pads([Pad::Right]))
+            .child(div().text_size(u(15.)).text_color(theme::text_muted()).child(trn!(data.count, "{n} game", "{n} games")));
         if n == 0 {
-            return super::no_games();
+            return div()
+                .flex()
+                .size_full()
+                .child(
+                    div()
+                        .flex_none()
+                        .flex()
+                        .flex_col()
+                        .w(u(SIDE + 420.))
+                        .h_full()
+                        .child(head)
+                        .child(div().flex_1().flex().items_center().justify_center().child(super::no_games())),
+                )
+                .into_any_element();
         }
         let nav = &mut self.tab_nav(tab).wheel;
         nav.filter = data.active;
@@ -183,19 +225,6 @@ impl CollectionView {
         let area = crate::ui::content_size(window);
         let (vw, vh) = (f32::from(area.width) / scale, f32::from(area.height) / scale);
         let list_w = (vw * 0.37).round().min(470.);
-        let (_, label, count) = &data.filters[data.active];
-        let head = div()
-            .flex_none()
-            .flex()
-            .items_center()
-            .gap(u(12.))
-            .h(u(HEAD))
-            .px(u(SIDE))
-            .child(div().child(crate::ui::icon(Icon::ChevronLeft, u(22.), theme::text_muted())).on_pads([Pad::Left]))
-            .child(kit::title(label.clone(), 22.))
-            .child(div().child(crate::ui::icon(Icon::ChevronRight, u(22.), theme::text_muted())).on_pads([Pad::Right]))
-            .child(div().text_size(u(15.)).text_color(theme::text_muted()).child(trn!(*count, "{n} game", "{n} games")));
-
         let handle = glide.handle().clone();
         let row_px = f32::from(u(ROW));
         // Before the first layout the list's height is a guess.
@@ -237,7 +266,6 @@ impl CollectionView {
             return None;
         }
         let g = self.lib.as_ref()?.get(key)?.clone();
-        let tag = self.wheel_tag(&g);
         let logo =
             (look::theme().layouts.wheel_items == WheelItems::Logo).then(|| self.console_logo(key, 200., 34., focused, window)).flatten();
         let what = match logo {
@@ -288,21 +316,7 @@ impl CollectionView {
                     .into_any_element()
             }
         };
-        let pill = kit::row_base(focused).h(u(ROW_H)).gap(u(14.)).child(what).child(
-            div()
-                .flex_none()
-                .text_size(u(12.))
-                .text_color(if focused {
-                    if kit::light() {
-                        Hsla { a: 0.65, ..theme::console_on_focus().into() }
-                    } else {
-                        theme::black_a(0.55)
-                    }
-                } else {
-                    theme::text_dim().into()
-                })
-                .child(tag),
-        );
+        let pill = kit::row_base(focused).h(u(ROW_H)).gap(u(14.)).child(what);
         Some(
             div()
                 .absolute()
@@ -325,7 +339,7 @@ impl CollectionView {
         let key = SharedString::from(g.key.clone());
         let art_h = wheel_art_h(w, body_h);
         let art = self.console_wide_art(&key, w, art_h, 200, window);
-        let logo = self.console_logo(&key, w * 0.55, art_h * 0.34, true, window);
+        let logo = (theme.hero.title == HeroTitle::Logo).then(|| self.console_logo(&key, w * 0.55, art_h * 0.34, true, window)).flatten();
         let no_logo = logo.is_none();
         let dash = || "\u{2014}".to_string();
         let status = self.console_status(g);
@@ -340,7 +354,17 @@ impl CollectionView {
                 row()
                     .child(fact_cell(tr!("Release year"), value(release_year(g).map_or_else(dash, |y| y.to_string()))))
                     .child(fact_cell(tr!("Genre"), value(g.details.genres.first().cloned().unwrap_or_else(dash))))
-                    .child(fact_cell(tr!("Rating"), value(g.details.critic_score.map_or_else(dash, |s| format!("{s:.0}"))))),
+                    .child(fact_cell(
+                        tr!("Platform"),
+                        value(
+                            g.details
+                                .platforms
+                                .iter()
+                                .map(|platform| platform.trim())
+                                .find(|platform| !platform.is_empty())
+                                .map_or_else(|| "-".to_string(), str::to_owned),
+                        ),
+                    )),
             )
             .child(
                 row()
@@ -377,9 +401,11 @@ impl CollectionView {
                     .absolute()
                     .left(u(20.))
                     .bottom(u(16.))
+                    .flex()
+                    .items_end()
                     .w(u(w * 0.55))
                     .h(u(art_h * 0.34))
-                    .child(img(l).size_full().object_fit(ObjectFit::Contain))
+                    .child(img(l).max_w(u(w * 0.55)).max_h(u(art_h * 0.34)).object_fit(ObjectFit::Contain))
             }));
         let panel = div()
             .relative()
@@ -388,7 +414,7 @@ impl CollectionView {
             .flex_col()
             .child(frame)
             .when(no_logo, |d| d.child(kit::title(g.title.clone(), 26.).mt(u(14.))))
-            .child(facts)
+            .when(theme.hero.facts, |d| d.child(facts))
             .children(overview.map(|o| {
                 motion::fade_in(
                     SharedString::from(format!("wheel-about-{}", g.key)),
@@ -403,18 +429,18 @@ impl CollectionView {
         let want = self.tab_nav(tab).wheel.filter;
         let data = self.wheel_data(tab, spec, want);
         let n = data.keys.len();
+        let nav = &mut self.tab_nav(tab).wheel;
+        if matches!(pad, Pad::Left | Pad::Right) {
+            nav.filter = super::step(data.active, data.filters.len(), pad.dir(), true);
+            nav.index = 0;
+            nav.restart = true;
+            return true;
+        }
         if n == 0 {
             return false;
         }
-        let nav = &mut self.tab_nav(tab).wheel;
         let i = nav.index.min(n - 1);
         let to = match pad {
-            Pad::Left | Pad::Right => {
-                nav.filter = super::step(data.active, data.filters.len(), pad.dir(), true);
-                nav.index = 0;
-                nav.restart = true;
-                return true;
-            }
             Pad::Up => super::step(i, n, -1, true),
             Pad::Down => super::step(i, n, 1, true),
             Pad::LT => i.saturating_sub(JUMP),
@@ -452,25 +478,29 @@ mod tests {
     // `gpui_kit::*` above brings gpui's own `test` macro.
     use core::prelude::v1::test;
 
-    fn entry(key: &str, platform: &str, favourite: bool) -> Entry {
-        Entry { key: key.into(), platform: platform.into(), favourite }
+    fn entry(key: &str, installed: bool, favourite: bool, facets: &[(FacetKind, &str)]) -> Entry {
+        Entry { key: key.into(), installed, favourite, facets: facets.iter().map(|(kind, value)| (*kind, (*value).into())).collect() }
     }
 
     #[test]
-    fn the_chooser_works_over_the_filtered_list_and_keeps_its_order() {
-        // As the Filters panel left them: installed favourites, last played first.
-        let games = [entry("c", "PC", true), entry("a", "PS2", true), entry("b", "PC", true)];
+    fn the_chooser_cycles_basic_and_metadata_filters_over_the_tab_games() {
+        let games = [
+            entry("c", true, true, &[(FacetKind::Platform, "PC"), (FacetKind::Genre, "Action")]),
+            entry("a", false, false, &[(FacetKind::Platform, "PS2"), (FacetKind::Genre, "Puzzle")]),
+            entry("b", true, false, &[(FacetKind::Platform, "PC"), (FacetKind::Genre, "Action")]),
+        ];
         let all = wheel_pick(&games, 0);
         assert_eq!(all.keys, ["c", "a", "b"]);
-        // The counts are the filtered list's.
-        assert_eq!(all.filters[0].2, 3);
-        assert_eq!(all.filters.iter().map(|f| f.1.to_string()).collect::<Vec<_>>(), ["All games", "PC", "PS2"]);
-        // Every game a favourite: no Favourites choice that adds nothing.
-        assert!(!all.filters.iter().any(|f| f.0 == Filter::Favourites));
-        let pc = wheel_pick(&games, 1);
+        assert_eq!(all.count, 3);
+        let installed = wheel_pick(&games, 1);
+        assert_eq!(installed.keys, ["c", "b"]);
+        let favourites = wheel_pick(&games, 2);
+        assert_eq!(favourites.keys, ["c"]);
+        let pc = wheel_pick(&games, 3);
         assert_eq!(pc.keys, ["c", "b"]);
-        // A choice past the end (the list shrank) falls back to the last one.
-        assert_eq!(wheel_pick(&games, 9).active, 2);
+        let action = wheel_pick(&games, 5);
+        assert_eq!(action.keys, ["c", "b"]);
+        assert_eq!(wheel_pick(&games, 9).active, 6);
         assert!(wheel_pick(&[], 0).keys.is_empty());
     }
 

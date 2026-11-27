@@ -315,8 +315,8 @@ impl CollectionView {
     fn dashboard_tiles(&mut self, tab: usize, spec: &TabSpec) -> Vec<Tile<SharedString>> {
         let Some(lib) = self.lib.clone() else { return Vec::new() };
         let widgets = look::theme().layouts.dashboard.clone();
-        let games = self.console_games(&spec.source);
-        let recent = top_recent(&games, RECENT);
+        let games = self.console_games_for_tab(spec);
+        let recent = super::top_tab_games(&games, spec, RECENT);
         let note = self.tab_nav(tab).dashboard.digest.as_ref().and_then(|d| d.note.as_ref()).map(|n| n.key.clone());
         let note = note.filter(|k| lib.get(k).is_some());
         let day = Local::now().date_naive().num_days_from_ce() as u64;

@@ -13,7 +13,7 @@ use heronite_i18n::{tr, trn};
 use super::super::super::CollectionView;
 use super::super::hero::{played_line, shelf_heading, HeroSize};
 use super::super::tile::{focus_frame, label_room};
-use super::{body_height, top_recent};
+use super::body_height;
 use crate::console::kit::{self, u};
 use crate::console::look;
 use crate::console::motion::{self, Axis, Glide, Goal};
@@ -115,13 +115,14 @@ impl CollectionView {
     }
 
     pub(super) fn render_xbox(&mut self, tab: usize, spec: &TabSpec, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let games = self.console_games(&spec.source);
+        let games = self.console_games_for_tab(spec);
         if games.is_empty() {
             return super::no_games();
         }
         let theme = look::theme();
-        let recent: Vec<SharedString> = top_recent(&games, RECENT).into_iter().map(|g| SharedString::from(g.key.clone())).collect();
-        let shelves = if theme.layouts.xbox_groups { self.console_shelves(&spec.source) } else { Vec::new() };
+        let recent: Vec<SharedString> =
+            super::top_tab_games(&games, spec, RECENT).into_iter().map(|g| SharedString::from(g.key.clone())).collect();
+        let shelves = if theme.layouts.xbox_groups { self.console_shelves_for_tab(spec) } else { Vec::new() };
         let m = self.xbox_metrics(window);
 
         let nav = &mut self.tab_nav(tab).xbox;
@@ -280,12 +281,13 @@ impl CollectionView {
     }
 
     pub(super) fn xbox_pad(&mut self, tab: usize, spec: &TabSpec, pad: Pad, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let games = self.console_games(&spec.source);
+        let games = self.console_games_for_tab(spec);
         if games.is_empty() {
             return false;
         }
-        let recent: Vec<SharedString> = top_recent(&games, RECENT).into_iter().map(|g| SharedString::from(g.key.clone())).collect();
-        let shelves = if look::theme().layouts.xbox_groups { self.console_shelves(&spec.source) } else { Vec::new() };
+        let recent: Vec<SharedString> =
+            super::top_tab_games(&games, spec, RECENT).into_iter().map(|g| SharedString::from(g.key.clone())).collect();
+        let shelves = if look::theme().layouts.xbox_groups { self.console_shelves_for_tab(spec) } else { Vec::new() };
         let m = self.xbox_metrics(window);
         let wrap = look::theme().nav.wrap;
         let nav = &mut self.tab_nav(tab).xbox;

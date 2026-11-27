@@ -109,6 +109,7 @@ impl CollectionView {
     /// the names the pickers offer from the loaded library.
     pub(super) fn open_console_customize(&mut self) {
         let mut state = ThemeState::new(&self.app_paths);
+        state.data.active_tab = self.console_tab_spec().0;
         state.data.saved = store::list(&self.app_paths);
         if let Some(lib) = self.lib.as_ref() {
             let org = self.organize();

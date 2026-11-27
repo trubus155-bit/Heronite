@@ -40,6 +40,14 @@ label_fn!(layout_name, Layout {
     Carousel => n_!("Carousel"),
     Xbox => n_!("Series X"),
 });
+label_fn!(tab_sort_name, TabSort {
+    Default => n_!("Default"),
+    TitleAscending => n_!("A–Z"),
+    TitleDescending => n_!("Z–A"),
+    LastPlayed => n_!("Last played"),
+    MostPlayed => n_!("Most played"),
+    ReleaseDate => n_!("Release date"),
+});
 label_fn!(start_on_name, StartOn { First => n_!("First tab"), Last => n_!("Last tab used") });
 label_fn!(a_button_name, AButton { Details => n_!("Opens the page"), Play => n_!("Plays") });
 label_fn!(hero_title_name, HeroTitle { Text => n_!("Text"), Logo => n_!("Logo, if there is one") });

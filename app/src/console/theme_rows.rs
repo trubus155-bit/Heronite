@@ -30,7 +30,7 @@ use heronite_data::console_theme::{
     parse_hex, presets, slug, AButton, AutoConsole, BackgroundMotion, BackgroundSource, Badges, Clock, ConfirmButton, ConsoleButton,
     ConsoleFont, ConsolePrefs, ConsoleTheme, Corners, FactStyle, FocusStyle, GamePage, Glyphs, GridPanel, Headings, HeroAlign, HeroTitle,
     Hints, Idle, LaunchScreen, LaunchShade, Layout, MenuStyle, Motion, OpenIn, ShelfSpec, Side, Size3, SoundStyle, SpotActions, StartOn,
-    TabBar, TabSpec, TileShape, TileSize, TileTitles, WheelItems, MAX_TABS, MENU_LOCKED,
+    TabBar, TabSort, TabSpec, TileShape, TileSize, TileTitles, WheelItems, MAX_TABS, MENU_LOCKED,
 };
 use heronite_data::smart_groups::SmartGroups;
 use heronite_data::{CollectionGame, Library};
@@ -40,7 +40,7 @@ use super::list::{Row, Value};
 use super::look::ACCENTS;
 use crate::icons::Icon;
 use labels::*;
-pub use labels::{a_button_name, confirm_name, console_button_name, glyphs_name, layout_name};
+pub use labels::{a_button_name, confirm_name, console_button_name, glyphs_name, layout_name, tab_sort_name};
 
 /// What the library has, for the pickers (a tab's games, a shelf's kind).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -105,6 +105,8 @@ pub struct Data {
     pub facts: Facts,
     /// The user's saved themes.
     pub saved: Vec<ConsoleTheme>,
+    /// The tab whose layout is currently being customized.
+    pub active_tab: usize,
 }
 
 pub struct Ctx<'a> {
@@ -193,8 +195,33 @@ pub fn rows(card: Card, cx: &Ctx) -> Vec<Row> {
         Card::Menu => menu_rows(cx),
         _ => Vec::new(),
     };
-    v.extend(OPTS.iter().filter(|o| o.card == card).map(|o| opt_row(o, cx)));
+    if card == Card::Hero && !hero_layout_visible(cx) {
+        return v;
+    }
+    v.extend(
+        OPTS.iter()
+            .filter(|o| o.card == card && (card != Card::Hero || hero_option_visible(o.id, active_layout(cx))))
+            .map(|o| opt_row(o, cx)),
+    );
     v
+}
+
+fn active_layout(cx: &Ctx) -> Layout {
+    cx.prefs.theme.tabs.get(cx.data.active_tab).or_else(|| cx.prefs.theme.tabs.first()).map_or(Layout::Shelves, |tab| tab.layout)
+}
+
+fn hero_layout_visible(cx: &Ctx) -> bool {
+    !matches!(active_layout(cx), Layout::Dashboard | Layout::Grid)
+}
+
+fn hero_option_visible(id: &str, layout: Layout) -> bool {
+    match layout {
+        Layout::Dashboard | Layout::Grid => false,
+        Layout::Carousel | Layout::Cinema | Layout::Xbox => matches!(id, "hero.title" | "hero.facts"),
+        Layout::Wheel => matches!(id, "hero.title" | "hero.facts" | "hero.overview"),
+        Layout::Spotlight => matches!(id, "hero.title" | "hero.facts" | "hero.overview" | "hero.size" | "hero.fact_style"),
+        Layout::Shelves => true,
+    }
 }
 
 /// The rows of a group of the Customize panel: its cards under their titles
@@ -212,10 +239,14 @@ fn cards_rows(cards: &[Card], cx: &Ctx) -> Vec<Row> {
     let titled = cards.len() > 1;
     let mut v = Vec::new();
     for card in cards {
+        let rows = rows(*card, cx);
+        if rows.is_empty() {
+            continue;
+        }
         if titled {
             v.push(Row::header(card.title()));
         }
-        v.extend(rows(*card, cx));
+        v.extend(rows);
     }
     v
 }
@@ -347,6 +378,12 @@ fn tab_rows(cx: &Ctx) -> Vec<Row> {
         let sources = source_options(&cx.data.facts, &t.source);
         let at = sources.iter().position(|(v, _)| *v == t.source).unwrap_or(0);
         v.push(Row::choice(format!("tab.{i}.source"), tr!("Games"), sources.into_iter().map(|(_, l)| l.into()).collect(), at));
+        v.push(Row::choice(
+            format!("tab.{i}.sort"),
+            tr!("Sort"),
+            names(TabSort::ALL, tab_sort_name).into_iter().map(SharedString::from).collect(),
+            index(TabSort::ALL, t.sort),
+        ));
         if i > 0 {
             v.push(Row::action(format!("tab.{i}.up"), tr!("Move earlier")).icon(Icon::ArrowUpward));
         }

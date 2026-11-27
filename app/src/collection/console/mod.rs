@@ -531,6 +531,7 @@ impl CollectionView {
         self.console.tab = layouts::step(self.console.tab.min(n - 1), n, delta, true);
         self.console.tab_dir = delta.signum() as f32;
         let tab = self.console.tab;
+        self.tab_nav(tab).wheel.reset_filter();
         if look::theme().nav.start_on == StartOn::Last {
             console::themes::remember_tab(&self.app_paths, tab);
         }

@@ -44,7 +44,7 @@ use super::super::super::focus::{hltb_hours, hltb_marker, hltb_note_text, HLTB_C
 use super::super::super::vm::{DetailField, DetailValue};
 use super::super::super::CollectionView;
 use super::super::hero::{fitted_title, logo_element, HeroSize};
-use super::{cinema, top_recent};
+use super::cinema;
 use crate::collection::focus_left::STAR;
 use crate::console::kit::{self, u};
 use crate::console::look;
@@ -280,8 +280,8 @@ fn debug_target() -> Option<(String, Option<String>)> {
 impl CollectionView {
     /// The games of the row: the tab's, the most recently played first.
     fn spotlight_keys(&self, spec: &TabSpec) -> Vec<SharedString> {
-        let games = self.console_games(&spec.source);
-        top_recent(&games, ROW_GAMES).into_iter().map(|g| SharedString::from(g.key.clone())).collect()
+        let games = self.console_games_for_tab(spec);
+        super::top_tab_games(&games, spec, ROW_GAMES).into_iter().map(|g| SharedString::from(g.key.clone())).collect()
     }
 
     /// Whether the focused game's store media are wanted: a Spotlight tab or
@@ -329,7 +329,7 @@ impl CollectionView {
             s.shots = own_shots;
         }
         let focus = self.focus.clone().filter(|f| f.key == key);
-        let text = if sections.about {
+        let text = if sections.about && theme.hero.overview {
             let nav = &mut self.spot_nav(host);
             match (&nav.about, &focus) {
                 (Some((k, t)), _) if *k == key => Some(t.clone()),
@@ -393,7 +393,7 @@ impl CollectionView {
         };
         // The game page keeps a line under the facts (Showcase's genre
         // chips, Cinema's genres); the console home has none.
-        s.chips = host == Host::Game;
+        s.chips = host == Host::Game && theme.hero.facts;
         // Cinema's page: its head is one column of its own, measured from its parts.
         if host == Host::Game && !theme.layouts.showcase_glass {
             s.head = cinema::page_head_h(logo_h, parts::BUTTON_H);
@@ -937,7 +937,7 @@ impl CollectionView {
             .flex()
             .flex_col()
             .child(self.spotlight_actions(g, actions))
-            .child(div().mt(u(18.)).child(self.spotlight_facts(g)))
+            .when(look::theme().hero.facts, |d| d.child(div().mt(u(18.)).child(self.spotlight_facts(g))))
             .when(shape.chips, |d| d.child(div().mt(u(10.)).child(parts::genre_chips(g))));
         let rest = placed(geo.buttons, reveal(SharedString::from(format!("spot-rest-{key}")), rest, f.rest_hold, REST_FADE, None));
         let mut out = vec![logo.into_any_element(), rest];

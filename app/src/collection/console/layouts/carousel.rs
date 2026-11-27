@@ -489,7 +489,7 @@ impl CollectionView {
             self.playing.contains_key(&g.app_name)
                 || lib.statuses.iter().any(|s| s.id == g.status_id && matches!(s.slug.as_str(), "playing" | "endless"))
         };
-        let games = self.console_games(spec.source.as_str());
+        let games = self.console_games_for_tab(spec);
         let picked: Vec<&CollectionGame> = games
             .iter()
             .map(|g| g.as_ref())
@@ -500,7 +500,11 @@ impl CollectionView {
                 _ => true,
             })
             .collect();
-        keys(by_title(picked))
+        if spec.sort == heronite_data::console_theme::TabSort::Default {
+            keys(by_title(picked))
+        } else {
+            keys(picked)
+        }
     }
 
     /// The rail letter of `key`'s game (`#` for digits and symbols).

@@ -3,7 +3,7 @@
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
-use heronite_data::console_theme::{Layout, MAX_TABS};
+use heronite_data::console_theme::{Layout, TabSort, MAX_TABS};
 use heronite_i18n::tr;
 
 use super::form::{choice_select, option_row, text_input};
@@ -33,6 +33,9 @@ pub(super) fn tabs(d: &mut SettingsPage, window: &mut Window, cx: &mut Context<S
         let at = sources.iter().position(|(v, _)| *v == t.source).unwrap_or(0);
         let labels: Vec<SharedString> = sources.into_iter().map(|(_, l)| l.into()).collect();
         let source = choice_select(d, &format!("tab.{i}.source").into(), &labels, at, true, cx);
+        let sort_at = TabSort::ALL.iter().position(|sort| *sort == t.sort).unwrap_or(0);
+        let sort_labels: Vec<SharedString> = TabSort::ALL.iter().map(|sort| tr(theme_rows::tab_sort_name(*sort)).into()).collect();
+        let sort = choice_select(d, &format!("tab.{i}.sort").into(), &sort_labels, sort_at, true, cx);
         let up = tool(format!("cm-tab-{i}-up").into(), Icon::ArrowUpward, i > 0)
             .when(i > 0, |b| b.on_click(cx.listener(move |d, _, _, cx| theme_rows::run_press(d, &format!("tab.{i}.up"), cx))));
         let remove = tool(format!("cm-tab-{i}-remove").into(), Icon::Close, tabs.len() > 1)
@@ -93,7 +96,15 @@ pub(super) fn tabs(d: &mut SettingsPage, window: &mut Window, cx: &mut Context<S
                         .child(up)
                         .child(remove),
                 )
-                .child(layouts),
+                .child(layouts)
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.))
+                        .child(div().flex_none().w(px(48.)).text_size(px(13.)).text_color(theme::text_muted()).child(tr!("Sort")))
+                        .child(div().w(px(240.)).child(sort)),
+                ),
         );
     }
     if tabs.len() < MAX_TABS {

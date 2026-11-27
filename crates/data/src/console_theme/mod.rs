@@ -100,6 +100,18 @@ str_enum! {
 }
 
 str_enum! {
+    /// Ordering for a tab's games; `Default` keeps each layout's own order.
+    pub enum TabSort {
+        Default = "default",
+        TitleAscending = "title-ascending",
+        TitleDescending = "title-descending",
+        LastPlayed = "last-played",
+        MostPlayed = "most-played",
+        ReleaseDate = "release-date",
+    } default Default
+}
+
+str_enum! {
     pub enum StartOn { First = "first", Last = "last" } default First
 }
 str_enum! {
@@ -288,17 +300,18 @@ pub struct TabSpec {
     /// `emulated`, `status:<id>`, `category:<name>`, `store:<label>`,
     /// `platform:<name>`. Unknown values show every game.
     pub source: String,
+    pub sort: TabSort,
 }
 
 impl Default for TabSpec {
     fn default() -> Self {
-        Self { name: String::new(), layout: Layout::Shelves, source: "all".into() }
+        Self { name: String::new(), layout: Layout::Shelves, source: "all".into(), sort: TabSort::Default }
     }
 }
 
 impl TabSpec {
     pub fn new(name: &str, layout: Layout, source: &str) -> Self {
-        Self { name: name.into(), layout, source: source.into() }
+        Self { name: name.into(), layout, source: source.into(), sort: TabSort::Default }
     }
 }
 

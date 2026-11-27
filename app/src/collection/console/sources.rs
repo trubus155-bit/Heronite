@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use gpui_kit::*;
 use heronite_data::categories::Categories;
-use heronite_data::console_theme::ShelfSpec;
+use heronite_data::console_theme::{ShelfSpec, TabSort, TabSpec};
 use heronite_data::hltb::WikiCache;
 use heronite_data::organize::{GameExtras, Organize};
 use heronite_data::smart_groups::SmartGroups;
@@ -45,6 +45,28 @@ pub(super) fn by_last_played(mut v: Vec<&CollectionGame>) -> Vec<&CollectionGame
 pub(super) fn by_title(mut v: Vec<&CollectionGame>) -> Vec<&CollectionGame> {
     v.sort_by(|a, b| heronite_data::organize::title_order(a, b));
     v
+}
+
+fn compare_tab_games(a: &CollectionGame, b: &CollectionGame, sort: TabSort) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+
+    let title = || heronite_data::organize::title_order(a, b);
+    match sort {
+        TabSort::Default => Ordering::Equal,
+        TabSort::TitleAscending => title(),
+        TabSort::TitleDescending => heronite_data::organize::title_order(b, a),
+        TabSort::LastPlayed => b.last_played.cmp(&a.last_played).then_with(title),
+        TabSort::MostPlayed => b.playtime_minutes.cmp(&a.playtime_minutes).then_with(title),
+        TabSort::ReleaseDate => {
+            let date = |game: &CollectionGame| game.details.release_date.as_deref().and_then(heronite_data::organize::release_ymd);
+            match (date(a), date(b)) {
+                (Some(a_date), Some(b_date)) => b_date.cmp(&a_date).then_with(title),
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => title(),
+            }
+        }
+    }
 }
 
 pub(super) fn keys(v: Vec<&CollectionGame>) -> Vec<SharedString> {
@@ -101,7 +123,7 @@ struct Inputs {
 pub(super) struct SourceCache {
     built_from: Option<Inputs>,
     games: HashMap<String, Arc<Vec<Arc<CollectionGame>>>>,
-    shelves: HashMap<String, Arc<Vec<Shelf>>>,
+    shelves: HashMap<(String, TabSort), Arc<Vec<Shelf>>>,
 }
 
 impl SourceCache {
@@ -181,6 +203,14 @@ impl CollectionView {
         self.cached_games(source).to_vec()
     }
 
+    pub(super) fn console_games_for_tab(&self, spec: &TabSpec) -> Vec<Arc<CollectionGame>> {
+        let mut games = self.console_games(&spec.source);
+        if spec.sort != TabSort::Default {
+            games.sort_by(|a, b| compare_tab_games(a, b, spec.sort));
+        }
+        games
+    }
+
     fn cached_games(&self, source: &str) -> Arc<Vec<Arc<CollectionGame>>> {
         let Some(lib) = self.lib.as_ref() else { return Arc::default() };
         let mut cache = self.console.sources.borrow_mut();
@@ -194,27 +224,27 @@ impl CollectionView {
         games
     }
 
-    /// The theme's shelves over `source`, empty ones left out.
-    pub(super) fn console_shelves(&self, source: &str) -> Vec<Shelf> {
-        self.cached_shelves(source).to_vec()
+    pub(super) fn console_shelves_for_tab(&self, spec: &TabSpec) -> Vec<Shelf> {
+        self.cached_shelves(&spec.source, spec.sort).to_vec()
     }
 
-    fn cached_shelves(&self, source: &str) -> Arc<Vec<Shelf>> {
+    fn cached_shelves(&self, source: &str, sort: TabSort) -> Arc<Vec<Shelf>> {
         let Some(lib) = self.lib.as_ref() else { return Arc::default() };
+        let key = (source.to_string(), sort);
         let cached = {
             let mut cache = self.console.sources.borrow_mut();
             cache.check(self, lib);
-            cache.shelves.get(source).cloned()
+            cache.shelves.get(&key).cloned()
         };
         if let Some(shelves) = cached {
             return shelves;
         }
-        let shelves = Arc::new(self.build_shelves(lib, source));
-        self.console.sources.borrow_mut().shelves.insert(source.to_string(), shelves.clone());
+        let shelves = Arc::new(self.build_shelves(lib, source, sort));
+        self.console.sources.borrow_mut().shelves.insert(key, shelves.clone());
         shelves
     }
 
-    fn build_shelves(&self, lib: &Library, source: &str) -> Vec<Shelf> {
+    fn build_shelves(&self, lib: &Library, source: &str, sort: TabSort) -> Vec<Shelf> {
         let theme = crate::console::look::theme();
         let games = self.cached_games(source);
         let games: Vec<&CollectionGame> = games.iter().map(|g| g.as_ref()).collect();
@@ -235,7 +265,11 @@ impl CollectionView {
         specs
             .iter()
             .filter_map(|spec| {
-                let mut keys = keys(self.shelf_games(lib, &games, &spec.kind));
+                let mut games = self.shelf_games(lib, &games, &spec.kind);
+                if sort != TabSort::Default {
+                    games.sort_by(|a, b| compare_tab_games(a, b, sort));
+                }
+                let mut keys = keys(games);
                 let total = keys.len();
                 keys.truncate(limit);
                 (!keys.is_empty()).then(|| Shelf {

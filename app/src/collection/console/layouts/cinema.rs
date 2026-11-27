@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
-use heronite_data::console_theme::TabSpec;
+use heronite_data::console_theme::{HeroTitle, TabSpec};
 use heronite_data::organize::release_year;
 use heronite_data::CollectionGame;
 use heronite_i18n::tr;
@@ -196,7 +196,12 @@ fn order(source: &str, games: &[std::sync::Arc<CollectionGame>]) -> Vec<SharedSt
 
 impl CollectionView {
     fn cinema_keys(&self, spec: &TabSpec) -> Vec<SharedString> {
-        order(&spec.source, &self.console_games(&spec.source))
+        let games = self.console_games_for_tab(spec);
+        if spec.sort == heronite_data::console_theme::TabSort::Default {
+            order(&spec.source, &games)
+        } else {
+            keys(games.iter().map(|g| g.as_ref()).collect())
+        }
     }
 
     /// Playtime, last played, where it plays (the store's icon and name),
@@ -314,24 +319,26 @@ impl CollectionView {
     pub(super) fn cinema_block(&mut self, g: &CollectionGame, id: &str, slide: f32, width: f32, logo_h: f32, window: &Window) -> Div {
         let key = SharedString::from(g.key.clone());
         let logo_w = LOGO.0.min(width);
-        // No logo: no title in its place, only the name in a quiet line over
-        // the facts (the block is not left without it).
-        let name = match self.console_logo(&key, logo_w, logo_h, true, window) {
-            Some(src) => Some(logo_element(src, logo_w, logo_h, window)),
-            None => Some(
-                div()
-                    .h(u(NAME_LINE))
-                    .flex()
-                    .items_center()
-                    .text_size(u(12.5))
-                    .font_weight(theme::W_BOLD)
-                    .text_color(kit::ink(0.86))
-                    .whitespace_nowrap()
-                    .max_w(u(width))
-                    .truncate()
-                    .child(g.title.clone())
-                    .into_any_element(),
-            ),
+        let text_name = || {
+            div()
+                .h(u(NAME_LINE))
+                .flex()
+                .items_center()
+                .text_size(u(12.5))
+                .font_weight(theme::W_BOLD)
+                .text_color(kit::ink(0.86))
+                .whitespace_nowrap()
+                .max_w(u(width))
+                .truncate()
+                .child(g.title.clone())
+                .into_any_element()
+        };
+        let name = match look::theme().hero.title {
+            HeroTitle::Logo => self
+                .console_logo(&key, logo_w, logo_h, true, window)
+                .map(|src| logo_element(src, logo_w, logo_h, window))
+                .unwrap_or_else(text_name),
+            HeroTitle::Text => text_name(),
         };
         let genres = div()
             .h(u(GENRES_H))
@@ -341,29 +348,22 @@ impl CollectionView {
             .text_size(u(14.))
             .text_color(kit::ink(0.72))
             .children(g.details.genres.iter().take(5).map(|genre| div().whitespace_nowrap().child(genre.clone())));
-        let rest = div()
-            .relative()
-            .flex()
-            .flex_col()
-            .items_start()
-            .gap(u(14.))
-            .child(div().h(u(FACTS_H)).flex().items_center().child(self.cinema_facts(g)))
-            .child(genres);
+        let rest = div().relative().flex().flex_col().items_start().gap(u(14.)).when(look::theme().hero.facts, |d| {
+            d.child(div().h(u(FACTS_H)).flex().items_center().child(self.cinema_facts(g))).child(genres)
+        });
         div()
             .flex()
             .flex_col()
             .items_start()
             .gap(u(LOGO_GAP))
-            .children(name.map(|name| {
-                motion::reveal(
-                    SharedString::from(format!("{id}-logo")),
-                    div().relative().flex().child(name),
-                    motion::NAME_HOLD,
-                    motion::NAME_FADE,
-                    slide,
-                    0.,
-                )
-            }))
+            .child(motion::reveal(
+                SharedString::from(format!("{id}-logo")),
+                div().relative().flex().child(name),
+                motion::NAME_HOLD,
+                motion::NAME_FADE,
+                slide,
+                0.,
+            ))
             .child(motion::reveal(SharedString::from(format!("{id}-rest")), rest, motion::REST_HOLD, motion::REST_FADE, 0., 0.))
     }
 
@@ -371,7 +371,7 @@ impl CollectionView {
     /// games), less the one that is the main row itself.
     fn cinema_shelves(&self, spec: &TabSpec) -> Vec<Shelf> {
         let main = spec.source.as_str();
-        self.console_shelves(main).into_iter().filter(|s| s.kind.as_ref() != main).collect()
+        self.console_shelves_for_tab(spec).into_iter().filter(|s| s.kind.as_ref() != main).collect()
     }
 
     pub(super) fn render_cinema(&mut self, tab: usize, spec: &TabSpec, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {

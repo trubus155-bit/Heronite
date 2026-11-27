@@ -101,7 +101,7 @@ fn shelf_summary(shelf: &Shelf, si: usize, how: HeroMotion) -> AnyElement {
 
 impl CollectionView {
     pub(super) fn render_shelves(&mut self, tab: usize, spec: &TabSpec, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let shelves = self.console_shelves(&spec.source);
+        let shelves = self.console_shelves_for_tab(spec);
         if shelves.is_empty() {
             return super::no_games();
         }
@@ -197,7 +197,7 @@ impl CollectionView {
 
     /// A / X on a cover, or "View all" on a shelf's last tile; Y, the tabs.
     pub(super) fn shelves_hints(&self, tab: usize, spec: &TabSpec) -> Vec<Hint> {
-        let shelves = self.console_shelves(&spec.source);
+        let shelves = self.console_shelves_for_tab(spec);
         let on_more = self.console.tab_navs.get(tab).is_some_and(|n| {
             let nav = &n.shelves;
             let si = nav.shelf.min(shelves.len().saturating_sub(1));
