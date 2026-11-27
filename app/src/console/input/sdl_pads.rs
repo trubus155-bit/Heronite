@@ -24,6 +24,8 @@ const BUTTONS_POLL: Duration = Duration::from_millis(30);
 const IDLE_POLL: Duration = Duration::from_millis(250);
 /// Controllers SDL reports this soon after it starts count as found at start.
 const SETTLE: Duration = Duration::from_secs(1);
+/// Keep transient device events from the startup re-enumeration out of the UI.
+const REINITIALIZE_TOAST_SUPPRESSION: Duration = Duration::from_millis(500);
 
 struct Listener {
     id: u64,
@@ -99,6 +101,8 @@ fn run(hub: &Hub) {
     // With when it was opened.
     let mut sdl: Option<(Controllers, Instant)> = None;
     let mut reinitialized = hub.reinitialize.load(Ordering::Acquire);
+    let mut reinitialize_pending = false;
+    let mut suppress_toast_until = None;
     loop {
         // Nobody listens: let go of the controllers and sleep until someone does.
         {
@@ -111,6 +115,9 @@ fn run(hub: &Hub) {
                     drop(old);
                     listeners = hub.lock();
                 }
+                if suppress_toast_until.take().is_some() {
+                    super::set_pad_toast_suppressed(false);
+                }
                 while listeners.is_empty() {
                     listeners = hub.changed.wait(listeners).unwrap_or_else(|e| e.into_inner());
                 }
@@ -119,6 +126,8 @@ fn run(hub: &Hub) {
         let requested = hub.reinitialize.load(Ordering::Acquire);
         if requested != reinitialized {
             reinitialized = requested;
+            super::set_pad_toast_suppressed(true);
+            reinitialize_pending = true;
             drop(sdl.take());
             let now = Instant::now();
             let mut listeners = hub.lock();
@@ -132,15 +141,29 @@ fn run(hub: &Hub) {
         }
         if sdl.is_none() {
             match Controllers::open() {
-                Ok(pads) => sdl = Some((pads, Instant::now())),
+                Ok(pads) => {
+                    sdl = Some((pads, Instant::now()));
+                    if reinitialize_pending {
+                        reinitialize_pending = false;
+                        suppress_toast_until = Some(Instant::now() + REINITIALIZE_TOAST_SUPPRESSION);
+                    }
+                }
                 Err(e) => {
                     log::warn!("controllers unavailable: {e}");
+                    if reinitialize_pending {
+                        reinitialize_pending = false;
+                        super::set_pad_toast_suppressed(false);
+                    }
                     // Their receivers end, as when gilrs cannot start; a later
                     // listener tries again.
                     hub.lock().clear();
                     continue;
                 }
             }
+        }
+        if suppress_toast_until.is_some_and(|until| Instant::now() >= until) {
+            suppress_toast_until = None;
+            super::set_pad_toast_suppressed(false);
         }
         let Some((pads, opened)) = sdl.as_mut() else { continue };
         // Controllers SDL finds just after it starts were already there.

@@ -18,12 +18,24 @@
 //! where each stick points (the desktop's pointer and scrolling:
 //! `collection::desktop_pad`).
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use futures::channel::mpsc::UnboundedReceiver;
 use gpui_kit::Keystroke;
 
 use super::Pad;
+
+static SUPPRESS_PAD_TOAST: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn pad_toast_suppressed() -> bool {
+    SUPPRESS_PAD_TOAST.load(Ordering::Relaxed)
+}
+
+#[cfg(windows)]
+fn set_pad_toast_suppressed(suppressed: bool) {
+    SUPPRESS_PAD_TOAST.store(suppressed, Ordering::Relaxed);
+}
 
 #[cfg(not(windows))]
 #[path = "input/gilrs_pads.rs"]

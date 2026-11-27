@@ -337,7 +337,7 @@ impl CollectionView {
                             }
                             PadMsg::Press(_) | PadMsg::Button(..) | PadMsg::Stick { .. } => {}
                             PadMsg::Connected(name, plugged) => {
-                                if plugged {
+                                if plugged && !crate::console::input::pad_toast_suppressed() {
                                     this.show_toast(tr!("Controller connected: {name}", name), false, cx);
                                 }
                                 look::set_controller(Some(&name));
@@ -346,7 +346,7 @@ impl CollectionView {
                             PadMsg::Disconnected { remaining } => {
                                 look::set_controller(remaining.as_deref());
                                 // The toast is for losing the last controller only.
-                                if remaining.is_none() {
+                                if remaining.is_none() && !crate::console::input::pad_toast_suppressed() {
                                     this.show_toast(tr!("Controller disconnected"), true, cx);
                                 }
                                 this.console.controller = remaining;
