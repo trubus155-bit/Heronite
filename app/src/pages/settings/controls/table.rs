@@ -52,6 +52,8 @@ pub(super) enum Edit {
     ConsoleX,
     /// How the buttons are drawn (the top of the page).
     Glyphs,
+    /// Which analog stick moves the desktop pointer.
+    DesktopPointerStick,
     /// Which button confirms, from the chip of that id (the top of the
     /// page, a confirm or back row).
     Confirm(&'static str),
@@ -714,7 +716,7 @@ fn desktop_off_banner(cx: &mut Context<SettingsPage>) -> AnyElement {
 
 /// On the desktop: fixed, the keys they stand for beside them
 /// (`collection/desktop_pad.rs`).
-fn desktop(d: &SettingsPage) -> Vec<Line> {
+fn desktop(d: &SettingsPage, cx: &mut Context<SettingsPage>) -> Vec<Line> {
     let read = |action: &'static str, part: Part, pad: Div, key: Option<Div>| {
         let mut l = Line::new(action, Some(part));
         l.also = pair(part);
@@ -723,6 +725,13 @@ fn desktop(d: &SettingsPage) -> Vec<Line> {
         l
     };
     let (confirm, back) = confirm_parts();
+    let pointer_right = crate::console::look::controls().desktop_pointer_right_stick;
+    let (pointer_part, scroll_part, scroll_name) =
+        if pointer_right { (Part::RStick, Part::LStick, tr!("L stick")) } else { (Part::LStick, Part::RStick, tr!("R stick")) };
+    let mut pointer = Line::new(tr!("Move the pointer"), Some(pointer_part));
+    pointer.pad = pointer_stick_chip(d, pointer_right, cx);
+    let mut scroll = Line::new(tr!("Scroll"), Some(scroll_part));
+    scroll.pad = glyph(scroll_name).into_any_element();
     vec![
         read(tr!("Move"), Part::DPad, glyph(tr!("D-pad")), Some(key_cap(tr!("Arrows")))),
         read(tr!("Confirm · play"), confirm, glyph(confirm.cap()), Some(key_cap("Enter"))),
@@ -736,10 +745,35 @@ fn desktop(d: &SettingsPage) -> Vec<Line> {
             }
             pages
         },
-        read(tr!("Move the pointer"), Part::RStick, glyph(tr!("R stick")), None),
+        pointer,
         read(tr!("Click · right-click"), Part::RT, glyphs(&["RT", "LT"]), None),
-        read(tr!("Scroll"), Part::LStick, glyph(tr!("L stick")), None),
+        scroll,
     ]
+}
+
+fn pointer_stick_chip(d: &SettingsPage, pointer_right: bool, cx: &mut Context<SettingsPage>) -> AnyElement {
+    let edit = Edit::DesktopPointerStick;
+    let state = ChipState { open: d.controls.edit == Some(edit), ..Default::default() };
+    let current = if pointer_right { tr!("R stick") } else { tr!("L stick") };
+    let content = div().text_size(px(12.5)).text_color(theme::text_primary()).child(current);
+    let chip = chip("controls-desktop-pointer-stick", content, state, edit, cx);
+    let menu = state.open.then(|| {
+        let mut list = div().mt(px(10.)).flex().flex_col().gap(px(2.));
+        for (i, (right, label)) in [(true, tr!("R stick")), (false, tr!("L stick"))].into_iter().enumerate() {
+            let on = right == pointer_right;
+            list = list.child(
+                crate::ui::dropdown::menu_item(SharedString::from(format!("controls-desktop-pointer-stick-{i}")), on)
+                    .child(div().flex_1().child(label))
+                    .child(div().w(px(14.)).children(on.then(|| icon(Icon::Check, px(14.), theme::text_primary()))))
+                    .on_click(cx.listener(move |d, _, _, cx| {
+                        super::change_controller(d, cx, |p| p.desktop_pointer_right_stick = right);
+                        close_edit(d, cx);
+                    })),
+            );
+        }
+        popover(tr!("Pointer stick"), None).child(list)
+    });
+    with_popover(d, chip, menu, cx)
 }
 
 /// During a game: the overlay's Guide chords and the keys beside them.
@@ -1082,7 +1116,7 @@ pub(super) fn render(d: &mut SettingsPage, window: &mut Window, cx: &mut Context
             if !crate::console::look::controls().desktop {
                 table = table.child(desktop_off_banner(cx));
             }
-            desktop(d)
+            desktop(d, cx)
         }
         Show::Overlay => overlay_open(d, cx),
         Show::Console => console(d, cx),

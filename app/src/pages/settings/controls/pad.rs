@@ -231,12 +231,18 @@ fn console(d: &SettingsPage) -> Vec<Callout> {
 
 /// On the desktop (`collection/desktop_pad.rs`), off while its setting is.
 fn desktop() -> Vec<Callout> {
-    let off = !crate::console::look::controls().desktop;
+    let controls = crate::console::look::controls();
+    let off = !controls.desktop;
+    let (pointer_part, pointer_name, scroll_part, scroll_name) = if controls.desktop_pointer_right_stick {
+        (Part::RStick, tr!("R stick"), Part::LStick, tr!("L stick"))
+    } else {
+        (Part::LStick, tr!("L stick"), Part::RStick, tr!("R stick"))
+    };
     let (confirm, back) = super::table::confirm_parts();
     vec![
         callout(Part::LT, "LT", tr!("Right-click")),
         callout(Part::LB, "LB", tr!("Page before")),
-        callout(Part::LStick, tr!("L stick"), tr!("Scroll")),
+        callout(scroll_part, scroll_name, tr!("Scroll")),
         callout(Part::DPad, tr!("D-pad"), tr!("Move")),
         callout(Part::RT, "RT", tr!("Click")),
         callout(Part::RB, "RB", tr!("Page after")),
@@ -244,7 +250,7 @@ fn desktop() -> Vec<Callout> {
         callout(Part::X, "X", tr!("The game's actions")),
         callout(back, back.cap(), tr!("Back · close")),
         callout(confirm, confirm.cap(), tr!("Confirm · play")),
-        callout(Part::RStick, tr!("R stick"), tr!("Move the pointer")),
+        callout(pointer_part, pointer_name, tr!("Move the pointer")),
     ]
     .into_iter()
     .map(|c| c.off(off))

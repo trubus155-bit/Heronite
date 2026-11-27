@@ -41,7 +41,7 @@ static GAME_ACCENT: RwLock<Option<(u8, u8, u8)>> = RwLock::new(None);
 static CONTROLLER: RwLock<Option<Glyphs>> = RwLock::new(None);
 /// The controller's options (`ConsolePrefs::controller`).
 static CONTROLS: RwLock<ControllerPrefs> =
-    RwLock::new(ControllerPrefs { glyphs: Glyphs::Auto, confirm: ConfirmButton::Auto, desktop: true });
+    RwLock::new(ControllerPrefs { glyphs: Glyphs::Auto, confirm: ConfirmButton::Auto, desktop: true, desktop_pointer_right_stick: true });
 
 fn classic() -> &'static Installed {
     static C: OnceLock<Installed> = OnceLock::new();

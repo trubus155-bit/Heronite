@@ -7,12 +7,11 @@
 //!   game's actions in the palette. LB / RB: the page before / after (the
 //!   ☰ menu's order), or the palette's filters while it is open; nothing
 //!   while LB + RB is the button held to enter console mode.
-//! - The right stick moves a pointer drawn over the window, RT clicks with
-//!   it and LT right-clicks (a game's menu): what the keys cannot reach
+//! - One stick moves a pointer drawn over the window, RT clicks with it and
+//!   LT right-clicks (a game's menu): what the keys cannot reach
 //!   (dialog buttons, switches) is a click away. The pointer hides when the
-//!   mouse moves or a button that types a key is pressed.
-//! - The left stick scrolls what is under the pointer (or the mouse, else
-//!   the middle of the window).
+//!   mouse moves or a button that types a key is pressed. The other stick
+//!   scrolls what is under the pointer (or the mouse, else the middle).
 //! - Guide, Start and Back are left to the shortcut to console mode and the
 //!   in-game overlay (`console::summon`).
 //!
@@ -101,6 +100,11 @@ fn pointer_step(x: f32, y: f32, dt: f32) -> (f32, f32) {
 /// positive `y`), right scrolls right (GPUI's negative `x`).
 fn scroll_step(x: f32, y: f32, dt: f32) -> (f32, f32) {
     (-curve(x) * SCROLL_SPEED * dt, curve(y) * SCROLL_SPEED * dt)
+}
+
+fn pointer_and_scroll_sticks(sticks: [(f32, f32); 2], pointer_right: bool) -> ((f32, f32), (f32, f32)) {
+    let pointer_index = usize::from(pointer_right);
+    (sticks[pointer_index], sticks[1 - pointer_index])
 }
 
 /// The key a press types, if it types one.
@@ -388,19 +392,19 @@ fn click(shared: &Shared, left: bool, window: &mut Window, cx: &mut App) {
     window.dispatch_event(PlatformInput::MouseUp(MouseUpEvent { button, position: at, modifiers, click_count: 1 }), cx);
 }
 
-/// A tick of tilted sticks: the right one moves the pointer, the left one
-/// scrolls. `false` once the view is gone.
+/// A tick of tilted sticks: their roles follow the controller preference.
+/// `false` once the view is gone.
 fn glide(this: &WeakEntity<CollectionView>, shared: &Rc<Shared>, dt: f32, cx: &mut AsyncWindowContext) -> bool {
     let Some(live) = live(this, cx) else { return false };
     if !live {
         shared.rest();
         return true;
     }
-    let [(lx, ly), (rx, ry)] = shared.sticks.get();
+    let (pointer, scroll) = pointer_and_scroll_sticks(shared.sticks.get(), crate::console::look::controls().desktop_pointer_right_stick);
     cx.update(|window, cx| {
-        if rx != 0. || ry != 0. {
+        if pointer.0 != 0. || pointer.1 != 0. {
             let from = shared.pointer.get().unwrap_or_else(|| pointer_origin(window));
-            let (dx, dy) = pointer_step(rx, ry, dt);
+            let (dx, dy) = pointer_step(pointer.0, pointer.1, dt);
             let size = window.viewport_size();
             let to = point((from.x + px(dx)).clamp(px(0.), size.width - px(1.)), (from.y + px(dy)).clamp(px(0.), size.height - px(1.)));
             // Pushed against an edge it stays: nothing to draw again.
@@ -408,8 +412,8 @@ fn glide(this: &WeakEntity<CollectionView>, shared: &Rc<Shared>, dt: f32, cx: &m
                 place(shared, to, window, cx);
             }
         }
-        if lx != 0. || ly != 0. {
-            let (dx, dy) = scroll_step(lx, ly, dt);
+        if scroll.0 != 0. || scroll.1 != 0. {
+            let (dx, dy) = scroll_step(scroll.0, scroll.1, dt);
             let position = shared.pointer.get().unwrap_or_else(|| pointer_origin(window));
             let ev = ScrollWheelEvent {
                 position,
@@ -425,7 +429,7 @@ fn glide(this: &WeakEntity<CollectionView>, shared: &Rc<Shared>, dt: f32, cx: &m
 
 #[cfg(test)]
 mod tests {
-    use super::{key_of, pointer_step, scroll_step, step_page, POINTER_SPEED};
+    use super::{key_of, pointer_and_scroll_sticks, pointer_step, scroll_step, step_page, POINTER_SPEED};
     use crate::console::Pad;
     use crate::pages::Page;
     use gpui_kit::Keystroke;
@@ -441,6 +445,13 @@ mod tests {
         assert!(scroll_step(0., 1., 0.1).1 > 0.);
         assert!(scroll_step(1., 0., 0.1).0 < 0.);
         assert_eq!(pointer_step(-0.5, 0., 1.).0, -pointer_step(0.5, 0., 1.).0);
+    }
+
+    #[test]
+    fn selected_pointer_stick_swaps_the_pointer_and_scroll_roles() {
+        let sticks = [(1., 2.), (3., 4.)];
+        assert_eq!(pointer_and_scroll_sticks(sticks, true), ((3., 4.), (1., 2.)));
+        assert_eq!(pointer_and_scroll_sticks(sticks, false), ((1., 2.), (3., 4.)));
     }
 
     #[test]

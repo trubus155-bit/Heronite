@@ -169,6 +169,14 @@ fn console_button(d: &SettingsPage) -> ConsoleButton {
     crate::console::themes::prefs(&d.ctx.app).console_button.resolved()
 }
 
+fn desktop_sticks() -> (&'static str, &'static str) {
+    if look::controls().desktop_pointer_right_stick {
+        (tr!("R stick"), tr!("L stick"))
+    } else {
+        (tr!("L stick"), tr!("R stick"))
+    }
+}
+
 /// Console mode's theme as saved (console mode's own copy, `look::theme`,
 /// is Classic while it is not running).
 fn console_theme(d: &SettingsPage) -> heronite_data::console_theme::ConsoleTheme {
@@ -446,10 +454,15 @@ fn device_bar(d: &SettingsPage, cx: &mut Context<SettingsPage>) -> Div {
         table::with_popover(d, chip, pop, cx)
     };
     let confirm_chip = confirm_chip(d, CONFIRM_CHIP, true, cx);
+    let (pointer_stick, scroll_stick) = desktop_sticks();
     let desktop = crate::ui::controls::toggle_row(
         "controls-desktop",
         tr!("Use the controller on the desktop"),
-        Some(tr!("Outside console mode it moves around as the keyboard and the mouse do: the d-pad steps, the right stick moves a pointer and RT clicks.")),
+        Some(tr!(
+            "Outside console mode it moves around as the keyboard and the mouse do: the d-pad steps, {pointer} moves a pointer, {scroll} scrolls and RT clicks.",
+            pointer = pointer_stick,
+            scroll = scroll_stick
+        ).as_str()),
         c.desktop,
     )
     .on_click(cx.listener(|d, _, _, cx| change_controller(d, cx, |p| p.desktop = !p.desktop)));
@@ -607,7 +620,15 @@ fn show_bar(d: &SettingsPage, cx: &mut Context<SettingsPage>) -> Div {
         )
         .to_string(),
         Show::Outside => tr!("On this PC, while no game runs. Click a shortcut to change it.").to_string(),
-        Show::Desktop => tr!("Outside console mode, in Heronite's window, while no game runs. The keys do the same.").to_string(),
+        Show::Desktop => {
+            let (pointer, scroll) = desktop_sticks();
+            tr!(
+                "Outside console mode, in Heronite's window, while no game runs. The keys do the same. {pointer} moves the pointer; {scroll} scrolls.",
+                pointer = pointer,
+                scroll = scroll
+            )
+            .to_string()
+        }
         Show::Overlay => tr!("While the overlay is on screen. Only the confirm button changes; the others are fixed.").to_string(),
         Show::Console => {
             let name = console_theme(d).name;

@@ -513,11 +513,13 @@ pub struct ControllerPrefs {
     /// The controller moves around the desktop (outside console mode) as
     /// the keyboard and the mouse do.
     pub desktop: bool,
+    /// The right stick moves the pointer; the left stick scrolls.
+    pub desktop_pointer_right_stick: bool,
 }
 
 impl Default for ControllerPrefs {
     fn default() -> Self {
-        Self { glyphs: Glyphs::Auto, confirm: ConfirmButton::Auto, desktop: true }
+        Self { glyphs: Glyphs::Auto, confirm: ConfirmButton::Auto, desktop: true, desktop_pointer_right_stick: true }
     }
 }
 
